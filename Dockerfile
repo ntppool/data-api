@@ -9,10 +9,11 @@ RUN touch ~app/.zshrc ~root/.zshrc; chown app:app ~app/.zshrc
 RUN mkdir /app
 ADD dist/data-api_linux_amd64_v1/data-api /app/
 
-EXPOSE 4200
-EXPOSE 4290
+EXPOSE 8030 # app
+EXPOSE 9019 # health
+EXPOSE 9020 # metrics
 
 USER app
 
 # Container start command for production
-CMD ["/app/data-api"]
+CMD ["/app/data-api", "server"]

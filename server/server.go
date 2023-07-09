@@ -13,6 +13,8 @@ import (
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
 
+	"go.ntppool.org/common/health"
+	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/metricsserver"
 
 	chdb "go.ntppool.org/data-api/chdb"
@@ -56,7 +58,7 @@ func NewServer(ctx context.Context) (*Server, error) {
 }
 
 func (srv *Server) Run() error {
-	slog.Info("Run()")
+	log := logger.Setup()
 
 	ctx, cancel := context.WithCancel(srv.ctx)
 	defer cancel()
@@ -64,7 +66,11 @@ func (srv *Server) Run() error {
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return srv.metrics.ListenAndServe(ctx, 9000)
+		return srv.metrics.ListenAndServe(ctx, 9020)
+	})
+
+	g.Go(func() error {
+		return health.HealthCheckListener(ctx, 9019, log.WithGroup("health"))
 	})
 
 	e := echo.New()
@@ -84,7 +90,7 @@ func (srv *Server) Run() error {
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 
 	g.Go(func() error {
-		return e.Start(":8000")
+		return e.Start(":8030")
 	})
 
 	return g.Wait()
