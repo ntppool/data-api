@@ -31,9 +31,8 @@ func (cli *CLI) serverCLI(cmd *cobra.Command, args []string) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		srv, err := server.NewServer(ctx)
+		srv, err := server.NewServer(ctx, cfgFile)
 		if err != nil {
-			log.Printf("NewServer() error: %s", err)
 			return fmt.Errorf("srv setup: %s", err)
 		}
 		return srv.Run()

@@ -12,6 +12,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+type Config struct {
+	MySQL DBConfig `yaml:"mysql"`
+}
+
 type DBConfig struct {
 	DSN  string `default:"" flag:"dsn" usage:"Database DSN"`
 	User string `default:"" flag:"user"`
@@ -38,6 +42,8 @@ func OpenDB(configFile string) (*sql.DB, error) {
 func createConnector(configFile string) CreateConnectorFunc {
 	return func() (driver.Connector, error) {
 
+		log.Printf("opening config file %s", configFile)
+
 		dbFile, err := os.Open(configFile)
 		if err != nil {
 			return nil, err
@@ -45,14 +51,16 @@ func createConnector(configFile string) CreateConnectorFunc {
 
 		dec := yaml.NewDecoder(dbFile)
 
-		cfg := DBConfig{}
+		cfg := Config{}
 
 		err = dec.Decode(&cfg)
 		if err != nil {
 			return nil, err
 		}
 
-		dsn := cfg.DSN
+		// log.Printf("db cfg: %+v", cfg)
+
+		dsn := cfg.MySQL.DSN
 		if len(dsn) == 0 {
 			return nil, fmt.Errorf("--database.dsn flag or DATABASE_DSN environment variable required")
 		}
@@ -62,11 +70,11 @@ func createConnector(configFile string) CreateConnectorFunc {
 			return nil, err
 		}
 
-		if user := cfg.User; len(user) > 0 && err == nil {
+		if user := cfg.MySQL.User; len(user) > 0 && err == nil {
 			dbcfg.User = user
 		}
 
-		if pass := cfg.Pass; len(pass) > 0 && err == nil {
+		if pass := cfg.MySQL.Pass; len(pass) > 0 && err == nil {
 			dbcfg.Passwd = pass
 		}
 

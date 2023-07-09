@@ -31,12 +31,12 @@ type Server struct {
 	tracer  otrace.Tracer
 }
 
-func NewServer(ctx context.Context) (*Server, error) {
-	ch, err := chdb.New("database.yaml")
+func NewServer(ctx context.Context, configFile string) (*Server, error) {
+	ch, err := chdb.New(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse open: %w", err)
 	}
-	db, err := ntpdb.OpenDB("database.yaml")
+	db, err := ntpdb.OpenDB(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("mysql open: %w", err)
 	}
