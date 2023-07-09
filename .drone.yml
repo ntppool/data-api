@@ -8,17 +8,51 @@ environment:
   GOMODCACHE: /cache/pkg/mod
 
 steps:
+  - name: fetch-tags
+    image: alpine/git
+    commands:
+      - git fetch --tags
+    resources:
+      requests:
+        cpu: 250
+        memory: 50MiB
+      limits:
+        cpu: 250
+        memory: 100MiB
+
   - name: test
-    image: golang:1.20.3
+    image: golang:1.20.5
     volumes:
       - name: go
         path: /go
       - name: gopkg
         path: /cache
     commands:
-      - go test -v
-      - go build
-      - go mod vendor
+      - go test -v ./...
+      - go build ./...
+
+  - name: goreleaser
+    image: golang:1.20.5
+    resources:
+      requests:
+        cpu: 6000
+        memory: 1024MiB
+      limits:
+        cpu: 10000
+        memory: 4096MiB
+    volumes:
+      - name: go
+        path: /go
+      - name: gopkg
+        path: /cache
+    environment:
+    #  GITHUB_TOKEN:
+    #    from_secret: GITHUB_TOKEN
+    commands:
+      - go install github.com/goreleaser/goreleaser@v1.19.2
+      - ./scripts/run-goreleaser
+      - echo Done
+    depends_on: [test]
 
   - name: docker
     image: harbor.ntppool.org/ntppool/drone-kaniko:main
@@ -38,6 +72,7 @@ steps:
         from_secret: harbor_username
       password:
         from_secret: harbor_password
+    depends_on: [goreleaser]
 
 volumes:
   - name: go
@@ -48,6 +83,6 @@ volumes:
 
 ---
 kind: signature
-hmac: b02e0d0b4a7ecc25a880b92bf94873c3fc61c87a65f225712c880399deebc7dd
+hmac: bfa8b3a2eec541120917b6335ec4319650e41d0f2bc9701897bffaa38cadd2a4
 
 ...

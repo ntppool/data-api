@@ -1,0 +1,18 @@
+before:
+  # we don't want this in the CI environment
+  #hooks:
+  #  - go mod tidy
+  #  - go generate ./...
+builds:
+  - main: ./
+    id: data-api
+    binary: data-api
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X go.ntppool.org/common/version.VERSION={{.Version}}
