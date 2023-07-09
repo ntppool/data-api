@@ -10,9 +10,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"go.ntppool.org/data-api/version"
+	"go.ntppool.org/common/version"
 
-	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -47,7 +46,7 @@ to quickly create a Cobra application.`,
 	}
 
 	cmd.AddCommand(cli.serverCmd())
-	cmd.AddCommand(version.VersionCmd())
+	cmd.AddCommand(version.VersionCmd("data-api"))
 
 	return cmd
 }
@@ -85,7 +84,7 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	} else {
 		// Find home directory.
-		home, err := homedir.Dir()
+		home, err := os.UserHomeDir()
 		if err != nil {
 			fmt.Println(err)
 			os.Exit(1)

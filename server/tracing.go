@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	"go.ntppool.org/data-api/version"
+	"go.ntppool.org/common/version"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/jaeger"

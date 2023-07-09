@@ -4,34 +4,32 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
-
-	chdb "go.ntppool.org/data-api/chdb"
-	"go.ntppool.org/data-api/ntpdb"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	otrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
+
+	"go.ntppool.org/common/metricsserver"
+
+	chdb "go.ntppool.org/data-api/chdb"
+	"go.ntppool.org/data-api/ntpdb"
 )
 
 type Server struct {
 	db *sql.DB
 	ch *chdb.ClickHouse
 
-	ctx    context.Context
-	mr     *prometheus.Registry
-	tracer otrace.Tracer
+	ctx context.Context
+
+	metrics *metricsserver.Metrics
+	tracer  otrace.Tracer
 }
 
 func NewServer(ctx context.Context) (*Server, error) {
-	mr := prometheus.NewRegistry()
-
 	ch, err := chdb.New("database.yaml")
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse open: %w", err)
@@ -42,10 +40,10 @@ func NewServer(ctx context.Context) (*Server, error) {
 	}
 
 	srv := &Server{
-		ch:  ch,
-		db:  db,
-		ctx: ctx,
-		mr:  mr,
+		ch:      ch,
+		db:      db,
+		ctx:     ctx,
+		metrics: metricsserver.New(),
 	}
 
 	err = srv.initTracer()
@@ -57,14 +55,6 @@ func NewServer(ctx context.Context) (*Server, error) {
 	return srv, nil
 }
 
-func (srv *Server) metricsHandler() http.Handler {
-	return promhttp.HandlerFor(srv.mr, promhttp.HandlerOpts{
-		ErrorLog:          log.Default(),
-		Registry:          srv.mr,
-		EnableOpenMetrics: true,
-	})
-}
-
 func (srv *Server) Run() error {
 	slog.Info("Run()")
 
@@ -73,17 +63,8 @@ func (srv *Server) Run() error {
 
 	g, _ := errgroup.WithContext(ctx)
 
-	metricsServer := &http.Server{
-		Addr:    ":9000",
-		Handler: srv.metricsHandler(),
-	}
-
 	g.Go(func() error {
-		err := metricsServer.ListenAndServe()
-		if err != nil {
-			return fmt.Errorf("metrics server: %w", err)
-		}
-		return nil
+		return srv.metrics.ListenAndServe(ctx, 9000)
 	})
 
 	e := echo.New()
@@ -99,6 +80,8 @@ func (srv *Server) Run() error {
 	})
 
 	e.GET("/api/usercc", srv.userCountryData)
+
+	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 
 	g.Go(func() error {
 		return e.Start(":8000")

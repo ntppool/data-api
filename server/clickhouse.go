@@ -6,7 +6,7 @@ import (
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"go.ntppool.org/data-api/version"
+	"go.ntppool.org/common/version"
 	"golang.org/x/exp/slog"
 )
 
@@ -19,7 +19,7 @@ func (srv *Server) chConn(ctx context.Context) (driver.Conn, error) {
 			Username: "default",
 			Password: "",
 		},
-		// Debug: true,
+		Debug: true,
 		// Debugf: func(format string, v ...interface{}) {
 		// 	slog.Info("debug format", "format", format)
 		// 	fmt.Printf(format+"\n", v)
