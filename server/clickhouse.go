@@ -19,7 +19,7 @@ func (srv *Server) chConn(ctx context.Context) (driver.Conn, error) {
 			Username: "default",
 			Password: "",
 		},
-		Debug: true,
+		// Debug: true,
 		// Debugf: func(format string, v ...interface{}) {
 		// 	slog.Info("debug format", "format", format)
 		// 	fmt.Printf(format+"\n", v)
