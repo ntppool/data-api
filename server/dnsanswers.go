@@ -21,6 +21,8 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
+	c.Response().Header().Set("Cache-Control", "max-age=20")
+
 	conn, err := srv.chConn(ctx)
 	if err != nil {
 		slog.Error("could not connect to clickhouse", "err", err)
@@ -76,6 +78,8 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 		PointSymbol: pointSymbol,
 		// Totals: totalData,
 	}
+
+	c.Response().Header().Set("Cache-Control", "max-age=1800")
 
 	return c.JSONPretty(http.StatusOK, r, "")
 
