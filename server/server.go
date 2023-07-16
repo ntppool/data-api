@@ -79,7 +79,12 @@ func (srv *Server) Run() error {
 	e.Use(middleware.Logger())
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost", "http://localhost:5173", "https://www.ntppool.org"},
+		AllowOrigins: []string{
+			"http://localhost", "http://localhost:5173", "http://localhost:8080",
+			"https://www.ntppool.org", "https://*.ntppool.org",
+			"https://web.beta.grundclock.com", "https://manage.beta.grundclock.com",
+			"https:/*.askdev.grundclock.com",
+		},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))
 
