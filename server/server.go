@@ -32,7 +32,7 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, configFile string) (*Server, error) {
-	ch, err := chdb.New(configFile)
+	ch, err := chdb.New(ctx, configFile)
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse open: %w", err)
 	}
@@ -107,12 +107,6 @@ func (srv *Server) userCountryData(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	conn, err := srv.chConn(ctx)
-	if err != nil {
-		slog.Error("could not connect to clickhouse", "err", err)
-		return c.String(http.StatusInternalServerError, "clickhouse error")
-	}
-
 	q := ntpdb.New(srv.db)
 	zoneStats, err := q.GetZoneStats(ctx)
 	if err != nil {
@@ -123,7 +117,7 @@ func (srv *Server) userCountryData(c echo.Context) error {
 		slog.Info("didn't get zoneStats")
 	}
 
-	data, err := srv.ch.UserCountryData(c.Request().Context(), conn)
+	data, err := srv.ch.UserCountryData(c.Request().Context())
 	if err != nil {
 		slog.Error("UserCountryData", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())

@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.ntppool.org/common/logger"
 )
 
 type ccCount struct {
-	CC     string
-	Count  uint64
-	Points float64
+	CC       string
+	Count    uint64
+	Points   float64
+	Netspeed float64
 }
 
 type ServerQueries []*ccCount
@@ -29,7 +29,9 @@ func (s ServerQueries) Less(i, j int) bool {
 	return s[i].Count > s[j].Count
 }
 
-func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, conn clickhouse.Conn, serverIP string, days int) (ServerQueries, error) {
+func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, days int) (ServerQueries, error) {
+
+	conn := d.conn
 
 	log := logger.Setup().With("server", serverIP)
 
@@ -85,12 +87,12 @@ func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, conn clickhouse.Con
 	return rv, nil
 }
 
-func (d *ClickHouse) AnswerTotals(ctx context.Context, conn clickhouse.Conn, qtype string, days int) (ServerTotals, error) {
+func (d *ClickHouse) AnswerTotals(ctx context.Context, qtype string, days int) (ServerTotals, error) {
 
 	log := logger.Setup()
 
 	// queries by UserCC / Qtype for the ServerIP
-	rows, err := conn.Query(ctx, `
+	rows, err := d.conn.Query(ctx, `
 	select UserCC,Qtype,sum(queries) as queries
 	from by_server_ip_1d
 	where
