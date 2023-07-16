@@ -76,6 +76,8 @@ func (srv *Server) Run() error {
 	e := echo.New()
 	e.Use(otelecho.Middleware("data-api"))
 
+	e.Use(middleware.Logger())
+
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost", "http://localhost:5173", "https://www.ntppool.org"},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
