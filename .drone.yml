@@ -21,7 +21,7 @@ steps:
         memory: 100MiB
 
   - name: test
-    image: golang:1.20.5
+    image: golang:1.21.1
     volumes:
       - name: go
         path: /go
@@ -32,7 +32,7 @@ steps:
       - go build ./...
 
   - name: goreleaser
-    image: golang:1.20.5
+    image: golang:1.21.1
     resources:
       requests:
         cpu: 6000
@@ -49,9 +49,7 @@ steps:
     #  GITHUB_TOKEN:
     #    from_secret: GITHUB_TOKEN
     commands:
-      - go install github.com/goreleaser/goreleaser@v1.19.2
       - ./scripts/run-goreleaser
-      - echo Done
     depends_on: [test]
 
   - name: docker
@@ -83,6 +81,6 @@ volumes:
 
 ---
 kind: signature
-hmac: bfa8b3a2eec541120917b6335ec4319650e41d0f2bc9701897bffaa38cadd2a4
+hmac: 05204fffeb72719d541b368c2950e2830ceeb0a344e10b0db526ddd4eeb695f0
 
 ...

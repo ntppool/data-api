@@ -10,6 +10,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/version"
 )
 
@@ -32,12 +33,6 @@ func (cli *CLI) rootCmd() *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "data-api",
 		Short: "A brief description of your application",
-		Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
 		// Uncomment the following line if your bare application
 		// has an action associated with it:
 		//	Run: func(cmd *cobra.Command, args []string) { },
@@ -62,6 +57,9 @@ func Execute() {
 }
 
 func (cli *CLI) init(cmd *cobra.Command) {
+
+	logger.Setup()
+
 	cmd.PersistentFlags().StringVar(&cfgFile, "database-config", "database.yaml", "config file (default is $HOME/.data-api.yaml)")
 
 	// Cobra also supports local flags, which will only run

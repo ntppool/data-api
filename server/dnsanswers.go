@@ -1,15 +1,16 @@
 package server
 
 import (
+	"log/slog"
 	"net/http"
 	"net/netip"
 
 	"github.com/labstack/echo/v4"
+	"golang.org/x/sync/errgroup"
+
 	"go.ntppool.org/common/logger"
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
-	"golang.org/x/exp/slog"
-	"golang.org/x/sync/errgroup"
 )
 
 const pointBasis float64 = 10000

@@ -6,10 +6,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"sort"
 	"time"
-
-	"golang.org/x/exp/slog"
 )
 
 type flatAPI struct {

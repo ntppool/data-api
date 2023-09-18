@@ -4,10 +4,12 @@ import (
 	"context"
 	"time"
 
+	"log/slog"
+
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+
 	"go.ntppool.org/common/version"
-	"golang.org/x/exp/slog"
 )
 
 type ClickHouse struct {

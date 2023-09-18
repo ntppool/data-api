@@ -4,13 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	otrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/slog"
 	"golang.org/x/sync/errgroup"
 
 	"go.ntppool.org/common/health"

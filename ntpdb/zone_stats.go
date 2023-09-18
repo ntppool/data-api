@@ -3,7 +3,7 @@ package ntpdb
 import (
 	"context"
 
-	"golang.org/x/exp/slog"
+	"log/slog"
 )
 
 type ZoneStats []ZoneStat
