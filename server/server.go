@@ -16,6 +16,7 @@ import (
 	"go.ntppool.org/common/health"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/metricsserver"
+	"go.ntppool.org/common/tracing"
 
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
@@ -48,12 +49,15 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		metrics: metricsserver.New(),
 	}
 
-	err = srv.initTracer()
+	err = tracing.InitTracer(ctx, &tracing.TracerConfig{
+		ServiceName: "data-api",
+		Environment: "",
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	srv.tracer = srv.NewTracer()
+	srv.tracer = tracing.NewTracer("data-api-tracer")
 	return srv, nil
 }
 
@@ -107,8 +111,8 @@ func (srv *Server) userCountryData(c echo.Context) error {
 
 	ctx := c.Request().Context()
 
-	q := ntpdb.New(srv.db)
-	zoneStats, err := q.GetZoneStats(ctx)
+	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
+	zoneStats, err := ntpdb.GetZoneStats(ctx, q)
 	if err != nil {
 		slog.Error("GetZoneStats", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())

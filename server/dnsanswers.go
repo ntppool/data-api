@@ -50,7 +50,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 	queryGroup.Go(func() error {
 		var err error
-		q := ntpdb.New(srv.db)
+		q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
 		zoneStats, err = q.GetZoneStatsV2(ctx, ip.String())
 		if err != nil {
 			slog.Error("GetZoneStatsV2", "err", err)

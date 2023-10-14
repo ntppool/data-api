@@ -9,6 +9,9 @@ import (
 	"log/slog"
 	"sort"
 	"time"
+
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"go.ntppool.org/common/tracing"
 )
 
 type flatAPI struct {
@@ -30,9 +33,11 @@ func (s UserCountry) Less(i, j int) bool {
 }
 
 func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) {
+	ctx, span := tracing.NewTracer("foozz").Start(ctx, "UserCountryData")
+	defer span.End()
 
-	// rows, err := conn.Query(ctx, "select dt,UserCC,Qtype,sum(queries) as queries from by_usercc_1d group by rollup(dt,Qtype,UserCC) order by dt,UserCC,Qtype;")
-	rows, err := d.conn.Query(ctx, "select max(dt) as d,UserCC,Qtype,sum(queries) as queries from by_usercc_1d where dt > now() - INTERVAL 4 DAY group by rollup(Qtype,UserCC) order by UserCC,Qtype;")
+	rows, err := d.conn.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
+		"select max(dt) as d,UserCC,Qtype,sum(queries) as queries from by_usercc_1d where dt > now() - INTERVAL 4 DAY group by rollup(Qtype,UserCC) order by UserCC,Qtype;")
 	if err != nil {
 		slog.Error("query error", "err", err)
 		return nil, fmt.Errorf("database error")

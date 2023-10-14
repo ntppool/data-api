@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"log/slog"
+
+	"go.ntppool.org/common/tracing"
 )
 
 type ZoneStats []ZoneStat
@@ -14,7 +16,9 @@ type ZoneStat struct {
 	V6 float64
 }
 
-func (q *Queries) GetZoneStats(ctx context.Context) (*ZoneStats, error) {
+func GetZoneStats(ctx context.Context, q Querier) (*ZoneStats, error) {
+	ctx, span := tracing.NewTracer("zone-stats").Start(ctx, "GetZoneStats")
+	defer span.End()
 
 	zoneStatsRows, err := q.GetZoneStatsData(ctx)
 	if err != nil {

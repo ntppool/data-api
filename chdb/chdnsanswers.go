@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/ClickHouse/clickhouse-go/v2"
 	"go.ntppool.org/common/logger"
+	"go.ntppool.org/common/tracing"
 )
 
 type ccCount struct {
@@ -31,12 +33,17 @@ func (s ServerQueries) Less(i, j int) bool {
 
 func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, days int) (ServerQueries, error) {
 
+	ctx, span := tracing.NewTracer("fooxx").Start(ctx, "ServerAnswerCounts")
+	defer span.End()
+
 	conn := d.conn
 
 	log := logger.Setup().With("server", serverIP)
 
 	// queries by UserCC / Qtype for the ServerIP
-	rows, err := conn.Query(ctx, `
+	rows, err := conn.Query(clickhouse.Context(ctx,
+		clickhouse.WithSpan(span.SpanContext()),
+	), `
 	select UserCC,Qtype,sum(queries) as queries
 	from by_server_ip_1d
 	where
