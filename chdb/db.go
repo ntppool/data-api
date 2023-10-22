@@ -4,11 +4,10 @@ import (
 	"context"
 	"time"
 
-	"log/slog"
-
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
+	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/version"
 )
 
@@ -25,6 +24,8 @@ func New(ctx context.Context, dbConfigPath string) (*ClickHouse, error) {
 }
 
 func setupClickhouse(ctx context.Context) (driver.Conn, error) {
+
+	log := logger.Setup()
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
 		Addr: []string{"10.43.207.123:9000"},
@@ -68,11 +69,11 @@ func setupClickhouse(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	slog.Info("clickhouse connection", "version", v)
+	log.Info("clickhouse connection", "version", v)
 
 	err = conn.Ping(ctx)
 	if err != nil {
-		slog.Error("clickhouse ping", "err", err)
+		log.Error("clickhouse ping", "err", err)
 		return nil, err
 	}
 

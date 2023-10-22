@@ -5,12 +5,11 @@ package chdb
 import (
 	"context"
 	"fmt"
-	"log"
-	"log/slog"
 	"sort"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
 )
 
@@ -33,13 +32,14 @@ func (s UserCountry) Less(i, j int) bool {
 }
 
 func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) {
+	log := logger.Setup()
 	ctx, span := tracing.Tracer().Start(ctx, "UserCountryData")
 	defer span.End()
 
 	rows, err := d.conn.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
 		"select max(dt) as d,UserCC,Qtype,sum(queries) as queries from by_usercc_1d where dt > now() - INTERVAL 4 DAY group by rollup(Qtype,UserCC) order by UserCC,Qtype;")
 	if err != nil {
-		slog.Error("query error", "err", err)
+		log.ErrorContext(ctx, "query error", "err", err)
 		return nil, fmt.Errorf("database error")
 	}
 
@@ -82,7 +82,7 @@ func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) 
 			&Qtype,
 			&queries,
 		); err != nil {
-			log.Fatal(err)
+			return nil, err
 		}
 
 		// tdt, err := time.Parse(time.RFC3339, dt)
@@ -108,7 +108,7 @@ func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) 
 			c = ccs[dt].CC[UserCC]
 
 		} else {
-			slog.Info("row", "dt", dt, "usercc", UserCC, "qtype", Qtype, "queries", queries)
+			log.InfoContext(ctx, "row", "dt", dt, "usercc", UserCC, "qtype", Qtype, "queries", queries)
 
 			if dt.UTC().Equal(time.Unix(0, 0)) {
 				continue // we skip the overall total
@@ -143,7 +143,7 @@ func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) 
 
 		totalDay, ok := totals[d]
 		if !ok {
-			slog.Error("no total for day", "date", d)
+			log.ErrorContext(ctx, "no total for day", "date", d)
 			continue
 		}
 		total4 := float64(totalDay.Count4)

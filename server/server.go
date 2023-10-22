@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 
 	"golang.org/x/sync/errgroup"
@@ -130,22 +129,23 @@ func (srv *Server) Shutdown(ctx context.Context) error {
 }
 
 func (srv *Server) userCountryData(c echo.Context) error {
-
-	ctx := c.Request().Context()
+	log := logger.Setup()
+	ctx, span := tracing.Tracer().Start(c.Request().Context(), "userCountryData")
+	defer span.End()
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
 	zoneStats, err := ntpdb.GetZoneStats(ctx, q)
 	if err != nil {
-		slog.Error("GetZoneStats", "err", err)
+		log.ErrorContext(ctx, "GetZoneStats", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 	if zoneStats == nil {
-		slog.Info("didn't get zoneStats")
+		log.InfoContext(ctx, "didn't get zoneStats")
 	}
 
 	data, err := srv.ch.UserCountryData(c.Request().Context())
 	if err != nil {
-		slog.Error("UserCountryData", "err", err)
+		log.ErrorContext(ctx, "UserCountryData", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 

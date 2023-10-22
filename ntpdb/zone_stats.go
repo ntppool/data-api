@@ -3,8 +3,7 @@ package ntpdb
 import (
 	"context"
 
-	"log/slog"
-
+	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
 )
 
@@ -17,6 +16,7 @@ type ZoneStat struct {
 }
 
 func GetZoneStats(ctx context.Context, q Querier) (*ZoneStats, error) {
+	log := logger.Setup()
 	ctx, span := tracing.Tracer().Start(ctx, "GetZoneStats")
 	defer span.End()
 
@@ -73,7 +73,7 @@ func GetZoneStats(ctx context.Context, q Querier) (*ZoneStats, error) {
 	data := ZoneStats{}
 	for name, cc := range ccs {
 
-		slog.Info("zone stats cc", "name", name)
+		log.InfoContext(ctx, "zone stats cc", "name", name)
 
 		cc.PercentTotal.V4 = (100 / total4) * float64(cc.Netspeed4)
 		cc.PercentTotal.V6 = (100 / total6) * float64(cc.Netspeed6)
