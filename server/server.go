@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 	slogecho "github.com/samber/slog-echo"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
-	otrace "go.opentelemetry.io/otel/trace"
 
 	"go.ntppool.org/common/health"
 	"go.ntppool.org/common/logger"
@@ -31,8 +31,8 @@ type Server struct {
 
 	ctx context.Context
 
-	metrics *metricsserver.Metrics
-	tracer  otrace.Tracer
+	metrics    *metricsserver.Metrics
+	tpShutdown []tracing.TpShutdownFunc
 }
 
 func NewServer(ctx context.Context, configFile string) (*Server, error) {
@@ -52,7 +52,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		metrics: metricsserver.New(),
 	}
 
-	err = tracing.InitTracer(ctx, &tracing.TracerConfig{
+	tpShutdown, err := tracing.InitTracer(ctx, &tracing.TracerConfig{
 		ServiceName: "data-api",
 		Environment: "",
 	})
@@ -60,7 +60,8 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, err
 	}
 
-	srv.tracer = tracing.Tracer()
+	srv.tpShutdown = append(srv.tpShutdown, tpShutdown)
+	// srv.tracer = tracing.Tracer()
 	return srv, nil
 }
 
@@ -83,6 +84,8 @@ func (srv *Server) Run() error {
 	e := echo.New()
 	e.Use(otelecho.Middleware("data-api"))
 	e.Use(slogecho.New(log))
+
+	srv.tpShutdown = append(srv.tpShutdown, e.Shutdown)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{
@@ -112,6 +115,18 @@ func (srv *Server) Run() error {
 	})
 
 	return g.Wait()
+}
+
+func (srv *Server) Shutdown(ctx context.Context) error {
+	logger.Setup().Info("Shutting down")
+	errs := []error{}
+	for _, fn := range srv.tpShutdown {
+		err := fn(ctx)
+		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (srv *Server) userCountryData(c echo.Context) error {
