@@ -7,11 +7,14 @@ import (
 	"log/slog"
 	"net/http"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	slogecho "github.com/samber/slog-echo"
+
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
 	otrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 
 	"go.ntppool.org/common/health"
 	"go.ntppool.org/common/logger"
@@ -79,8 +82,7 @@ func (srv *Server) Run() error {
 
 	e := echo.New()
 	e.Use(otelecho.Middleware("data-api"))
-
-	e.Use(middleware.Logger())
+	e.Use(slogecho.New(log))
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{
@@ -93,6 +95,11 @@ func (srv *Server) Run() error {
 	}))
 
 	e.GET("/hello", func(c echo.Context) error {
+		ctx := c.Request().Context()
+		ctx, span := tracing.Tracer().Start(ctx, "hello")
+		defer span.End()
+
+		log.InfoContext(ctx, "hello log")
 		return c.String(http.StatusOK, "Hello")
 	})
 
