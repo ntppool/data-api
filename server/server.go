@@ -57,7 +57,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, err
 	}
 
-	srv.tracer = tracing.NewTracer("data-api-tracer")
+	srv.tracer = tracing.Tracer()
 	return srv, nil
 }
 

@@ -9,6 +9,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"go.ntppool.org/common/logger"
+	"go.ntppool.org/common/tracing"
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
 )
@@ -20,10 +21,11 @@ const pointSymbol = "‱"
 // const pointSymbol = "‰"
 
 func (srv *Server) dnsAnswers(c echo.Context) error {
-
 	log := logger.Setup()
-
 	ctx := c.Request().Context()
+
+	ctx, span := tracing.Tracer().Start(ctx, "dnsanswers")
+	defer span.End()
 
 	c.Response().Header().Set("Cache-Control", "max-age=20")
 

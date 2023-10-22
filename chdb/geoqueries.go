@@ -33,7 +33,7 @@ func (s UserCountry) Less(i, j int) bool {
 }
 
 func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) {
-	ctx, span := tracing.NewTracer("foozz").Start(ctx, "UserCountryData")
+	ctx, span := tracing.Tracer().Start(ctx, "UserCountryData")
 	defer span.End()
 
 	rows, err := d.conn.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),

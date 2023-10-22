@@ -33,7 +33,7 @@ func (s ServerQueries) Less(i, j int) bool {
 
 func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, days int) (ServerQueries, error) {
 
-	ctx, span := tracing.NewTracer("fooxx").Start(ctx, "ServerAnswerCounts")
+	ctx, span := tracing.Tracer().Start(ctx, "ServerAnswerCounts")
 	defer span.End()
 
 	conn := d.conn

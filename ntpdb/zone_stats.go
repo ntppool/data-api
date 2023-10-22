@@ -17,7 +17,7 @@ type ZoneStat struct {
 }
 
 func GetZoneStats(ctx context.Context, q Querier) (*ZoneStats, error) {
-	ctx, span := tracing.NewTracer("zone-stats").Start(ctx, "GetZoneStats")
+	ctx, span := tracing.Tracer().Start(ctx, "GetZoneStats")
 	defer span.End()
 
 	zoneStatsRows, err := q.GetZoneStatsData(ctx)
