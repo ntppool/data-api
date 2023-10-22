@@ -2,7 +2,7 @@ module go.ntppool.org/data-api
 
 go 1.21.3
 
-replace github.com/samber/slog-echo => github.com/abh/slog-echo v0.0.0-20231023011242-479313afb549
+replace github.com/samber/slog-echo => github.com/abh/slog-echo v0.0.0-20231024051244-af740639893e
 
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.14.3

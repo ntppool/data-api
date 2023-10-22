@@ -1,11 +1,13 @@
 package server
 
 import (
-	"log/slog"
+	"database/sql"
+	"errors"
 	"net/http"
 	"net/netip"
 
 	"github.com/labstack/echo/v4"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
 
 	"go.ntppool.org/common/logger"
@@ -27,21 +29,27 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 	ctx, span := tracing.Tracer().Start(ctx, "dnsanswers")
 	defer span.End()
 
-	c.Response().Header().Set("Cache-Control", "max-age=20")
+	// for errors and 404s, a shorter cache time
+	c.Response().Header().Set("Cache-Control", "public,max-age=300")
 
 	// conn, err := srv.chConn(ctx)
 	// if err != nil {
-	// 	slog.Error("could not connect to clickhouse", "err", err)
+	// 	log.Error("could not connect to clickhouse", "err", err)
 	// 	return c.String(http.StatusInternalServerError, "clickhouse error")
 	// }
+
+	log = log.With("server_param", c.Param("server"))
+	span.SetAttributes(attribute.String("server_param", c.Param("server")))
 
 	ip, err := netip.ParseAddr(c.Param("server"))
 	if err != nil {
 		log.Warn("could not parse server parameter", "server", c.Param("server"), "err", err)
-		return c.NoContent(http.StatusNotFound)
+		return c.NoContent(http.StatusBadRequest)
 	}
 
 	if ip.String() != c.Param("server") || len(c.QueryString()) > 0 {
+		// better URLs are forever
+		c.Response().Header().Set("Cache-Control", "public,max-age=10400")
 		return c.Redirect(http.StatusPermanentRedirect, "https://www.ntppool.org/api/data/server/dns/answers/"+ip.String())
 	}
 
@@ -53,19 +61,23 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 	queryGroup.Go(func() error {
 		var err error
 		q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
-		zoneStats, err = q.GetZoneStatsV2(ctx, ip.String())
-		if err != nil {
-			slog.Error("GetZoneStatsV2", "err", err)
-			return err
-		}
-		if zoneStats == nil {
-			slog.Info("didn't get zoneStats")
-		}
 
 		serverNetspeed, err = q.GetServerNetspeed(ctx, ip.String())
 		if err != nil {
-			slog.Error("GetServerNetspeed", "err", err)
+			if !errors.Is(err, sql.ErrNoRows) {
+				log.Error("GetServerNetspeed", "err", err)
+			}
+			return err // this will return if the server doesn't exist
+		}
+
+		zoneStats, err = q.GetZoneStatsV2(ctx, ip.String())
+		if err != nil {
+			// if we had a netspeed we expect rows here, too.
+			log.Error("GetZoneStatsV2", "err", err)
 			return err
+		}
+		if zoneStats == nil {
+			log.Warn("didn't get zoneStats")
 		}
 
 		return nil
@@ -79,7 +91,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 		var err error
 		serverData, err = srv.ch.ServerAnswerCounts(c.Request().Context(), ip.String(), days)
 		if err != nil {
-			slog.Error("ServerUserCCData", "err", err)
+			log.Error("ServerUserCCData", "err", err)
 			return err
 		}
 		return nil
@@ -97,14 +109,17 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 		totalData, err = srv.ch.AnswerTotals(c.Request().Context(), qtype, days)
 		if err != nil {
-			slog.Error("AnswerTotals", "err", err)
+			log.Error("AnswerTotals", "err", err)
 		}
 		return err
 	})
 
 	err = queryGroup.Wait()
 	if err != nil {
-		slog.Error("query error", "err", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			return c.String(http.StatusNotFound, "Not found")
+		}
+		log.Error("query error", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
@@ -116,7 +131,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 			zn = ""
 		}
 		zoneTotals[zn] = z.NetspeedActive // binary.BigEndian.Uint64(...)
-		// slog.Info("zone netspeed", "cc", z.ZoneName, "speed", z.NetspeedActive)
+		// log.Info("zone netspeed", "cc", z.ZoneName, "speed", z.NetspeedActive)
 	}
 
 	for _, cc := range serverData {
@@ -141,7 +156,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 		// Totals: totalData,
 	}
 
-	c.Response().Header().Set("Cache-Control", "max-age=1800")
+	c.Response().Header().Set("Cache-Control", "public,max-age=1800")
 
 	return c.JSONPretty(http.StatusOK, r, "")
 
