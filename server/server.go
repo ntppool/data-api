@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 
 	"golang.org/x/sync/errgroup"
 
@@ -19,6 +20,7 @@ import (
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/metricsserver"
 	"go.ntppool.org/common/tracing"
+	"go.ntppool.org/common/xff/fastlyxff"
 
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
@@ -81,6 +83,29 @@ func (srv *Server) Run() error {
 	})
 
 	e := echo.New()
+
+	trustOptions := []echo.TrustOption{
+		echo.TrustLoopback(true),
+		echo.TrustLinkLocal(false),
+		echo.TrustPrivateNet(true),
+	}
+
+	if fileName := os.Getenv("FASTLY_IPS"); len(fileName) > 0 {
+		xff, err := fastlyxff.New(fileName)
+		if err != nil {
+			return err
+		}
+		cdnTrustRanges, err := xff.EchoTrustOption()
+		if err != nil {
+			return err
+		}
+		trustOptions = append(trustOptions, cdnTrustRanges...)
+	} else {
+		log.Warn("Fastly IPs not configured (FASTLY_IPS)")
+	}
+
+	e.IPExtractor = echo.ExtractIPFromXFFHeader(trustOptions...)
+
 	e.Use(otelecho.Middleware("data-api"))
 	e.Use(slogecho.New(log))
 
@@ -106,7 +131,6 @@ func (srv *Server) Run() error {
 	})
 
 	e.GET("/api/usercc", srv.userCountryData)
-
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 
 	g.Go(func() error {

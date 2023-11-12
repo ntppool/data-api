@@ -11,7 +11,7 @@ require (
 	github.com/samber/slog-echo v1.6.0
 	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.4
-	go.ntppool.org/common v0.2.4
+	go.ntppool.org/common v0.2.5-0.20231112235121-2bff6d8ef307
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.45.0
 	go.opentelemetry.io/otel v1.19.0
 	go.opentelemetry.io/otel/trace v1.19.0
