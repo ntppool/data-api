@@ -113,8 +113,7 @@ func (srv *Server) Run() error {
 	e.Use(otelecho.Middleware("data-api"))
 	e.Use(slogecho.NewWithConfig(log,
 		slogecho.Config{
-			WithTraceID: true,
-			// WithSpanID:  true,
+			WithTraceID: false, // done by logger already
 			// WithRequestHeader: true,
 		},
 	))

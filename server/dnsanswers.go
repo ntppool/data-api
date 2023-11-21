@@ -141,9 +141,15 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 			totalName = "uk"
 		}
 		if zt, ok := zoneTotals[totalName]; ok {
+			// log.InfoContext(ctx, "netspeed data", "pointBasis", pointBasis, "zt", zt, "server netspeed", serverNetspeed)
+			if zt == 0 {
+				// if the recorded netspeed for the zone was zero, assume it's at least
+				// this servers worth instead. Otherwise the Netspeed gets to be 'infinite'.
+				zt = int32(serverNetspeed)
+			}
 			cc.Netspeed = (pointBasis / float64(zt)) * float64(serverNetspeed)
 		}
-		// log.Info("points", "cc", cc.CC, "points", cc.Points)
+		// log.DebugContext(ctx, "points", "cc", cc.CC, "points", cc.Points)
 	}
 
 	r := struct {
