@@ -15,11 +15,14 @@ import (
 	slogecho "github.com/samber/slog-echo"
 
 	"go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	"go.ntppool.org/common/health"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/metricsserver"
 	"go.ntppool.org/common/tracing"
+	"go.ntppool.org/common/version"
 	"go.ntppool.org/common/xff/fastlyxff"
 
 	chdb "go.ntppool.org/data-api/chdb"
@@ -83,6 +86,7 @@ func (srv *Server) Run() error {
 	})
 
 	e := echo.New()
+	srv.tpShutdown = append(srv.tpShutdown, e.Shutdown)
 
 	trustOptions := []echo.TrustOption{
 		echo.TrustLoopback(true),
@@ -107,9 +111,38 @@ func (srv *Server) Run() error {
 	e.IPExtractor = echo.ExtractIPFromXFFHeader(trustOptions...)
 
 	e.Use(otelecho.Middleware("data-api"))
-	e.Use(slogecho.New(log))
+	e.Use(slogecho.NewWithConfig(log,
+		slogecho.Config{
+			WithTraceID: true,
+			// WithSpanID:  true,
+			// WithRequestHeader: true,
+		},
+	))
 
-	srv.tpShutdown = append(srv.tpShutdown, e.Shutdown)
+	e.Use(
+		func(next echo.HandlerFunc) echo.HandlerFunc {
+			return func(c echo.Context) error {
+				request := c.Request()
+
+				span := trace.SpanFromContext(request.Context())
+				span.SetAttributes(attribute.String("http.real_ip", c.RealIP()))
+
+				c.Response().Header().Set("Traceparent", span.SpanContext().TraceID().String())
+
+				return next(c)
+			}
+		},
+	)
+
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		vinfo := version.VersionInfo()
+		v := "data-api/" + vinfo.Version + "+" + vinfo.GitRevShort
+		return func(c echo.Context) error {
+
+			c.Response().Header().Set(echo.HeaderServer, v)
+			return next(c)
+		}
+	})
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{
@@ -119,6 +152,13 @@ func (srv *Server) Run() error {
 			"https:/*.askdev.grundclock.com",
 		},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+	}))
+
+	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
+		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
+			log.ErrorContext(c.Request().Context(), err.Error(), "stack", string(stack))
+			return err
+		},
 	}))
 
 	e.GET("/hello", func(c echo.Context) error {
@@ -132,6 +172,7 @@ func (srv *Server) Run() error {
 
 	e.GET("/api/usercc", srv.userCountryData)
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
+	// e.GET("/api/server/scores/:server/:type", srv.logScores)
 
 	g.Go(func() error {
 		return e.Start(":8030")
