@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.ntppool.org/common/logger"
+	"go.ntppool.org/common/version"
 	"go.ntppool.org/data-api/server"
 	"golang.org/x/sync/errgroup"
 )
@@ -38,6 +39,8 @@ func (cli *CLI) serverCLI(cmd *cobra.Command, args []string) error {
 	defer cancel()
 
 	g, ctx := errgroup.WithContext(ctx)
+
+	log.Info("starting", "version", version.Version())
 
 	srv, err := server.NewServer(ctx, cfgFile)
 	if err != nil {
