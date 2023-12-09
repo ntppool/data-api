@@ -78,6 +78,52 @@ func (_d QuerierTxWithTracing) Commit(ctx context.Context) (err error) {
 	return _d.QuerierTx.Commit(ctx)
 }
 
+// GetServerByID implements QuerierTx
+func (_d QuerierTxWithTracing) GetServerByID(ctx context.Context, id uint32) (s1 Server, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerByID")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"id":  id}, map[string]interface{}{
+				"s1":  s1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetServerByID(ctx, id)
+}
+
+// GetServerByIP implements QuerierTx
+func (_d QuerierTxWithTracing) GetServerByIP(ctx context.Context, ip string) (s1 Server, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerByIP")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"ip":  ip}, map[string]interface{}{
+				"s1":  s1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetServerByIP(ctx, ip)
+}
+
 // GetServerNetspeed implements QuerierTx
 func (_d QuerierTxWithTracing) GetServerNetspeed(ctx context.Context, ip string) (u1 uint32, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerNetspeed")

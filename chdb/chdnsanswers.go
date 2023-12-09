@@ -95,11 +95,14 @@ func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, da
 }
 
 func (d *ClickHouse) AnswerTotals(ctx context.Context, qtype string, days int) (ServerTotals, error) {
-
 	log := logger.Setup()
+	ctx, span := tracing.Tracer().Start(ctx, "AnswerTotals")
+	defer span.End()
 
 	// queries by UserCC / Qtype for the ServerIP
-	rows, err := d.conn.Query(ctx, `
+	rows, err := d.conn.Query(clickhouse.Context(ctx,
+		clickhouse.WithSpan(span.SpanContext()),
+	), `
 	select UserCC,Qtype,sum(queries) as queries
 	from by_server_ip_1d
 	where

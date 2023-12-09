@@ -24,9 +24,7 @@ const pointSymbol = "‱"
 
 func (srv *Server) dnsAnswers(c echo.Context) error {
 	log := logger.Setup()
-	ctx := c.Request().Context()
-
-	ctx, span := tracing.Tracer().Start(ctx, "dnsanswers")
+	ctx, span := tracing.Tracer().Start(c.Request().Context(), "dnsanswers")
 	defer span.End()
 
 	// for errors and 404s, a shorter cache time

@@ -12,6 +12,8 @@ sql:
         omit_unused_structs: true
         emit_interface: true
         # emit_all_enum_values: true
+        rename:
+          servers.Ip: IP
         overrides:
           - column: "server_netspeed.netspeed_active"
             go_type: "uint64"

@@ -25,13 +25,16 @@ import (
 	"go.ntppool.org/common/version"
 	"go.ntppool.org/common/xff/fastlyxff"
 
+	"go.ntppool.org/api/config"
+
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
 )
 
 type Server struct {
-	db *sql.DB
-	ch *chdb.ClickHouse
+	db     *sql.DB
+	ch     *chdb.ClickHouse
+	config *config.Config
 
 	ctx context.Context
 
@@ -40,6 +43,8 @@ type Server struct {
 }
 
 func NewServer(ctx context.Context, configFile string) (*Server, error) {
+	log := logger.Setup()
+
 	ch, err := chdb.New(ctx, configFile)
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse open: %w", err)
@@ -49,10 +54,16 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		return nil, fmt.Errorf("mysql open: %w", err)
 	}
 
+	conf := config.New()
+	if !conf.Valid() {
+		log.Error("invalid ntppool config")
+	}
+
 	srv := &Server{
 		ch:      ch,
 		db:      db,
 		ctx:     ctx,
+		config:  conf,
 		metrics: metricsserver.New(),
 	}
 
@@ -171,6 +182,8 @@ func (srv *Server) Run() error {
 
 	e.GET("/api/usercc", srv.userCountryData)
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
+	e.GET("/graph/:server/:type", srv.graphImage)
+
 	// e.GET("/api/server/scores/:server/:type", srv.logScores)
 
 	g.Go(func() error {

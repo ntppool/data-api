@@ -35,4 +35,15 @@ WHERE
 	AND in_pool = 1
 	AND netspeed > 0
 GROUP BY z.name)
-AS server_netspeed
+AS server_netspeed;
+
+-- name: GetServerByID :one
+select * from servers
+where
+  id = ?;
+
+
+-- name: GetServerByIP :one
+select * from servers
+where
+  ip = sqlc.arg(ip);
