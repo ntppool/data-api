@@ -87,7 +87,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 	queryGroup.Go(func() error {
 		var err error
-		serverData, err = srv.ch.ServerAnswerCounts(c.Request().Context(), ip.String(), days)
+		serverData, err = srv.ch.ServerAnswerCounts(ctx, ip.String(), days)
 		if err != nil {
 			log.Error("ServerUserCCData", "err", err)
 			return err
@@ -105,7 +105,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 			qtype = "AAAA"
 		}
 
-		totalData, err = srv.ch.AnswerTotals(c.Request().Context(), qtype, days)
+		totalData, err = srv.ch.AnswerTotals(ctx, qtype, days)
 		if err != nil {
 			log.Error("AnswerTotals", "err", err)
 		}
