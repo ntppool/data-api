@@ -103,13 +103,13 @@ func (_d QuerierTxWithTracing) GetMonitorByName(ctx context.Context, tlsName sql
 }
 
 // GetMonitorsByID implements QuerierTx
-func (_d QuerierTxWithTracing) GetMonitorsByID(ctx context.Context, ids []uint32) (ma1 []Monitor, err error) {
+func (_d QuerierTxWithTracing) GetMonitorsByID(ctx context.Context, monitorids []uint32) (ma1 []Monitor, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetMonitorsByID")
 	defer func() {
 		if _d._spanDecorator != nil {
 			_d._spanDecorator(_span, map[string]interface{}{
-				"ctx": ctx,
-				"ids": ids}, map[string]interface{}{
+				"ctx":        ctx,
+				"monitorids": monitorids}, map[string]interface{}{
 				"ma1": ma1,
 				"err": err})
 		} else if err != nil {
@@ -122,7 +122,7 @@ func (_d QuerierTxWithTracing) GetMonitorsByID(ctx context.Context, ids []uint32
 
 		_span.End()
 	}()
-	return _d.QuerierTx.GetMonitorsByID(ctx, ids)
+	return _d.QuerierTx.GetMonitorsByID(ctx, monitorids)
 }
 
 // GetServerByID implements QuerierTx
@@ -238,6 +238,29 @@ func (_d QuerierTxWithTracing) GetServerNetspeed(ctx context.Context, ip string)
 		_span.End()
 	}()
 	return _d.QuerierTx.GetServerNetspeed(ctx, ip)
+}
+
+// GetServerScores implements QuerierTx
+func (_d QuerierTxWithTracing) GetServerScores(ctx context.Context, arg GetServerScoresParams) (ga1 []GetServerScoresRow, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerScores")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"arg": arg}, map[string]interface{}{
+				"ga1": ga1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetServerScores(ctx, arg)
 }
 
 // GetZoneStatsData implements QuerierTx

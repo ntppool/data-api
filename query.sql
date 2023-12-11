@@ -52,7 +52,18 @@ select * from monitors where tls_name = ?;
 
 -- name: GetMonitorsByID :many
 select * from monitors
-where id in (sqlc.slice('ids'));
+where id in (sqlc.slice('MonitorIDs'));
+
+-- name: GetServerScores :many
+select
+    m.id, m.name, m.tls_name, m.location, m.type,
+    ss.score_raw, ss.score_ts, ss.status
+  from server_scores ss
+    inner join monitors m
+      on (m.id=ss.monitor_id)
+where
+  server_id = ? AND
+  monitor_id in (sqlc.slice('MonitorIDs'));
 
 -- name: GetServerLogScores :many
 select * from log_scores

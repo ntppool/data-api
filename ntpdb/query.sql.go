@@ -42,19 +42,19 @@ func (q *Queries) GetMonitorByName(ctx context.Context, tlsName sql.NullString) 
 
 const getMonitorsByID = `-- name: GetMonitorsByID :many
 select id, type, user_id, account_id, name, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on from monitors
-where id in (/*SLICE:ids*/?)
+where id in (/*SLICE:MonitorIDs*/?)
 `
 
-func (q *Queries) GetMonitorsByID(ctx context.Context, ids []uint32) ([]Monitor, error) {
+func (q *Queries) GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]Monitor, error) {
 	query := getMonitorsByID
 	var queryParams []interface{}
-	if len(ids) > 0 {
-		for _, v := range ids {
+	if len(monitorids) > 0 {
+		for _, v := range monitorids {
 			queryParams = append(queryParams, v)
 		}
-		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", strings.Repeat(",?", len(monitorids))[1:], 1)
 	} else {
-		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", "NULL", 1)
 	}
 	rows, err := q.db.QueryContext(ctx, query, queryParams...)
 	if err != nil {
@@ -256,6 +256,77 @@ func (q *Queries) GetServerNetspeed(ctx context.Context, ip string) (uint32, err
 	var netspeed uint32
 	err := row.Scan(&netspeed)
 	return netspeed, err
+}
+
+const getServerScores = `-- name: GetServerScores :many
+select
+    m.id, m.name, m.tls_name, m.location, m.type,
+    ss.score_raw, ss.score_ts, ss.status
+  from server_scores ss
+    inner join monitors m
+      on (m.id=ss.monitor_id)
+where
+  server_id = ? AND
+  monitor_id in (/*SLICE:MonitorIDs*/?)
+`
+
+type GetServerScoresParams struct {
+	ServerID   uint32   `db:"server_id" json:"server_id"`
+	MonitorIDs []uint32 `db:"MonitorIDs" json:"MonitorIDs"`
+}
+
+type GetServerScoresRow struct {
+	ID       uint32             `db:"id" json:"id"`
+	Name     string             `db:"name" json:"name"`
+	TlsName  sql.NullString     `db:"tls_name" json:"tls_name"`
+	Location string             `db:"location" json:"location"`
+	Type     MonitorsType       `db:"type" json:"type"`
+	ScoreRaw float64            `db:"score_raw" json:"score_raw"`
+	ScoreTs  sql.NullTime       `db:"score_ts" json:"score_ts"`
+	Status   ServerScoresStatus `db:"status" json:"status"`
+}
+
+func (q *Queries) GetServerScores(ctx context.Context, arg GetServerScoresParams) ([]GetServerScoresRow, error) {
+	query := getServerScores
+	var queryParams []interface{}
+	queryParams = append(queryParams, arg.ServerID)
+	if len(arg.MonitorIDs) > 0 {
+		for _, v := range arg.MonitorIDs {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", strings.Repeat(",?", len(arg.MonitorIDs))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetServerScoresRow
+	for rows.Next() {
+		var i GetServerScoresRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.TlsName,
+			&i.Location,
+			&i.Type,
+			&i.ScoreRaw,
+			&i.ScoreTs,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getZoneStatsData = `-- name: GetZoneStatsData :many

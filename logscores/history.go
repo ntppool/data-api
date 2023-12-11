@@ -6,20 +6,30 @@ import (
 	"time"
 
 	"go.ntppool.org/common/logger"
+	"go.ntppool.org/common/tracing"
 	"go.ntppool.org/data-api/ntpdb"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type LogScoreHistory struct {
-	LogScores []ntpdb.LogScore
-	Monitors  map[int]string
+	LogScores  []ntpdb.LogScore
+	Monitors   map[int]string
+	MonitorIDs []uint32
 }
 
 func GetHistory(ctx context.Context, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
 	log := logger.Setup()
+	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistory")
+	defer span.End()
 
 	if count == 0 {
 		count = 200
 	}
+
+	span.SetAttributes(
+		attribute.Int("server", int(serverID)),
+		attribute.Int("monitor", int(monitorID)),
+	)
 
 	log.Debug("GetHistory", "server", serverID, "monitor", monitorID, "since", since, "count", count)
 
@@ -65,13 +75,8 @@ func GetHistory(ctx context.Context, db *sql.DB, serverID, monitorID uint32, sin
 	}
 
 	return &LogScoreHistory{
-		LogScores: ls,
-		Monitors:  monitors,
+		LogScores:  ls,
+		Monitors:   monitors,
+		MonitorIDs: monitorIDs,
 	}, nil
 }
-
-/*
-
-
-
- */
