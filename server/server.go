@@ -137,6 +137,12 @@ func (srv *Server) Run() error {
 				span := trace.SpanFromContext(request.Context())
 				span.SetAttributes(attribute.String("http.real_ip", c.RealIP()))
 
+				// since the Go library (temporarily?) isn't including this
+				span.SetAttributes(attribute.String("url.path", c.Path()))
+				if q := c.QueryString(); len(q) > 0 {
+					span.SetAttributes(attribute.String("url.query", q))
+				}
+
 				c.Response().Header().Set("Traceparent", span.SpanContext().TraceID().String())
 
 				return next(c)
