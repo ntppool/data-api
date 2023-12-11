@@ -142,6 +142,8 @@ go.ntppool.org/api v0.1.8-0.20231210025001-f2c143296511 h1:ilTOX5NQcdDiNohhDexUe
 go.ntppool.org/api v0.1.8-0.20231210025001-f2c143296511/go.mod h1:9FKbwWfF7eRU7GZVEI3wUYv71ZKt16cLCGfxLayzS2Q=
 go.ntppool.org/common v0.2.5 h1:fvuFrCCbmaRzZOSwv71+yhqVLOTDB/fD7YlscdGa6qs=
 go.ntppool.org/common v0.2.5/go.mod h1:Cw8mq8jd2sLCxbTNzYXKXn3qKo2ZLERZ6V/eLcSgDHw=
+go.ntppool.org/common v0.2.6-0.20231211031613-608f05d39551 h1:kJdF3U4KBuJJtbF04d5OA/QttxDY/fOgHe1oUDEgLGA=
+go.ntppool.org/common v0.2.6-0.20231211031613-608f05d39551/go.mod h1:Cw8mq8jd2sLCxbTNzYXKXn3qKo2ZLERZ6V/eLcSgDHw=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.46.1 h1:yJWyqeE+8jdOJpt+ZFn7sX05EJAK/9C4jjNZyb61xZg=
 go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.46.1/go.mod h1:tlgpIvi6LCv4QIZQyBc8Gkr6HDxbJLTh9eQPNZAaljE=
 go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.46.1 h1:gbhw/u49SS3gkPWiYweQNJGm/uJN5GkI/FrosxSHT7A=

@@ -15,5 +15,7 @@ sql:
         rename:
           servers.Ip: IP
         overrides:
+          - column: log_scores.attributes
+            go_type: go.ntppool.org/common/types.LogScoreAttributes
           - column: "server_netspeed.netspeed_active"
             go_type: "uint64"

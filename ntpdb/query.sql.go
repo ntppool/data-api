@@ -7,8 +7,93 @@ package ntpdb
 
 import (
 	"context"
+	"database/sql"
+	"strings"
 	"time"
 )
+
+const getMonitorByName = `-- name: GetMonitorByName :one
+select id, type, user_id, account_id, name, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on from monitors where tls_name = ?
+`
+
+func (q *Queries) GetMonitorByName(ctx context.Context, tlsName sql.NullString) (Monitor, error) {
+	row := q.db.QueryRowContext(ctx, getMonitorByName, tlsName)
+	var i Monitor
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.UserID,
+		&i.AccountID,
+		&i.Name,
+		&i.Location,
+		&i.Ip,
+		&i.IpVersion,
+		&i.TlsName,
+		&i.ApiKey,
+		&i.Status,
+		&i.Config,
+		&i.ClientVersion,
+		&i.LastSeen,
+		&i.LastSubmit,
+		&i.CreatedOn,
+	)
+	return i, err
+}
+
+const getMonitorsByID = `-- name: GetMonitorsByID :many
+select id, type, user_id, account_id, name, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on from monitors
+where id in (/*SLICE:ids*/?)
+`
+
+func (q *Queries) GetMonitorsByID(ctx context.Context, ids []uint32) ([]Monitor, error) {
+	query := getMonitorsByID
+	var queryParams []interface{}
+	if len(ids) > 0 {
+		for _, v := range ids {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:ids*/?", strings.Repeat(",?", len(ids))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Monitor
+	for rows.Next() {
+		var i Monitor
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.UserID,
+			&i.AccountID,
+			&i.Name,
+			&i.Location,
+			&i.Ip,
+			&i.IpVersion,
+			&i.TlsName,
+			&i.ApiKey,
+			&i.Status,
+			&i.Config,
+			&i.ClientVersion,
+			&i.LastSeen,
+			&i.LastSubmit,
+			&i.CreatedOn,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
 
 const getServerByID = `-- name: GetServerByID :one
 select id, ip, ip_version, user_id, account_id, hostname, stratum, in_pool, in_server_list, netspeed, created_on, updated_on, score_ts, score_raw, deletion_on from servers
@@ -66,6 +151,100 @@ func (q *Queries) GetServerByIP(ctx context.Context, ip string) (Server, error) 
 		&i.DeletionOn,
 	)
 	return i, err
+}
+
+const getServerLogScores = `-- name: GetServerLogScores :many
+select id, monitor_id, server_id, ts, score, step, offset, rtt, attributes from log_scores
+where
+  server_id = ?
+  order by ts desc
+  limit ?
+`
+
+type GetServerLogScoresParams struct {
+	ServerID uint32 `db:"server_id" json:"server_id"`
+	Limit    int32  `db:"limit" json:"limit"`
+}
+
+func (q *Queries) GetServerLogScores(ctx context.Context, arg GetServerLogScoresParams) ([]LogScore, error) {
+	rows, err := q.db.QueryContext(ctx, getServerLogScores, arg.ServerID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LogScore
+	for rows.Next() {
+		var i LogScore
+		if err := rows.Scan(
+			&i.ID,
+			&i.MonitorID,
+			&i.ServerID,
+			&i.Ts,
+			&i.Score,
+			&i.Step,
+			&i.Offset,
+			&i.Rtt,
+			&i.Attributes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getServerLogScoresByMonitorID = `-- name: GetServerLogScoresByMonitorID :many
+select id, monitor_id, server_id, ts, score, step, offset, rtt, attributes from log_scores
+where
+  server_id = ? AND
+  monitor_id = ?
+  order by ts desc
+  limit ?
+`
+
+type GetServerLogScoresByMonitorIDParams struct {
+	ServerID  uint32        `db:"server_id" json:"server_id"`
+	MonitorID sql.NullInt32 `db:"monitor_id" json:"monitor_id"`
+	Limit     int32         `db:"limit" json:"limit"`
+}
+
+func (q *Queries) GetServerLogScoresByMonitorID(ctx context.Context, arg GetServerLogScoresByMonitorIDParams) ([]LogScore, error) {
+	rows, err := q.db.QueryContext(ctx, getServerLogScoresByMonitorID, arg.ServerID, arg.MonitorID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LogScore
+	for rows.Next() {
+		var i LogScore
+		if err := rows.Scan(
+			&i.ID,
+			&i.MonitorID,
+			&i.ServerID,
+			&i.Ts,
+			&i.Score,
+			&i.Step,
+			&i.Offset,
+			&i.Rtt,
+			&i.Attributes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getServerNetspeed = `-- name: GetServerNetspeed :one

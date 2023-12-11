@@ -188,6 +188,7 @@ func (srv *Server) Run() error {
 
 	e.GET("/api/usercc", srv.userCountryData)
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
+	e.GET("/api/server/scores/:server/:mode", srv.history)
 	e.GET("/graph/:server/:type", srv.graphImage)
 
 	// e.GET("/api/server/scores/:server/:type", srv.logScores)

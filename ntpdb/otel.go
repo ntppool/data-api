@@ -8,6 +8,7 @@ package ntpdb
 
 import (
 	"context"
+	"database/sql"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -78,6 +79,52 @@ func (_d QuerierTxWithTracing) Commit(ctx context.Context) (err error) {
 	return _d.QuerierTx.Commit(ctx)
 }
 
+// GetMonitorByName implements QuerierTx
+func (_d QuerierTxWithTracing) GetMonitorByName(ctx context.Context, tlsName sql.NullString) (m1 Monitor, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetMonitorByName")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx":     ctx,
+				"tlsName": tlsName}, map[string]interface{}{
+				"m1":  m1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetMonitorByName(ctx, tlsName)
+}
+
+// GetMonitorsByID implements QuerierTx
+func (_d QuerierTxWithTracing) GetMonitorsByID(ctx context.Context, ids []uint32) (ma1 []Monitor, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetMonitorsByID")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"ids": ids}, map[string]interface{}{
+				"ma1": ma1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetMonitorsByID(ctx, ids)
+}
+
 // GetServerByID implements QuerierTx
 func (_d QuerierTxWithTracing) GetServerByID(ctx context.Context, id uint32) (s1 Server, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerByID")
@@ -122,6 +169,52 @@ func (_d QuerierTxWithTracing) GetServerByIP(ctx context.Context, ip string) (s1
 		_span.End()
 	}()
 	return _d.QuerierTx.GetServerByIP(ctx, ip)
+}
+
+// GetServerLogScores implements QuerierTx
+func (_d QuerierTxWithTracing) GetServerLogScores(ctx context.Context, arg GetServerLogScoresParams) (la1 []LogScore, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerLogScores")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"arg": arg}, map[string]interface{}{
+				"la1": la1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetServerLogScores(ctx, arg)
+}
+
+// GetServerLogScoresByMonitorID implements QuerierTx
+func (_d QuerierTxWithTracing) GetServerLogScoresByMonitorID(ctx context.Context, arg GetServerLogScoresByMonitorIDParams) (la1 []LogScore, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetServerLogScoresByMonitorID")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx": ctx,
+				"arg": arg}, map[string]interface{}{
+				"la1": la1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetServerLogScoresByMonitorID(ctx, arg)
 }
 
 // GetServerNetspeed implements QuerierTx

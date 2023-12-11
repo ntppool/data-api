@@ -13,7 +13,7 @@ require (
 	github.com/spf13/cobra v1.8.0
 	github.com/stretchr/testify v1.8.4
 	go.ntppool.org/api v0.1.8-0.20231210025001-f2c143296511
-	go.ntppool.org/common v0.2.5
+	go.ntppool.org/common v0.2.6-0.20231211031613-608f05d39551
 	go.opentelemetry.io/contrib/instrumentation/github.com/labstack/echo/otelecho v0.46.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace v0.46.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1

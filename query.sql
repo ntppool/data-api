@@ -42,8 +42,29 @@ select * from servers
 where
   id = ?;
 
-
 -- name: GetServerByIP :one
 select * from servers
 where
   ip = sqlc.arg(ip);
+
+-- name: GetMonitorByName :one
+select * from monitors where tls_name = ?;
+
+-- name: GetMonitorsByID :many
+select * from monitors
+where id in (sqlc.slice('ids'));
+
+-- name: GetServerLogScores :many
+select * from log_scores
+where
+  server_id = ?
+  order by ts desc
+  limit ?;
+
+-- name: GetServerLogScoresByMonitorID :many
+select * from log_scores
+where
+  server_id = ? AND
+  monitor_id = ?
+  order by ts desc
+  limit ?;

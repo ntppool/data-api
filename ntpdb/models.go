@@ -9,7 +9,138 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"time"
+
+	"go.ntppool.org/common/types"
 )
+
+type MonitorsIpVersion string
+
+const (
+	MonitorsIpVersionV4 MonitorsIpVersion = "v4"
+	MonitorsIpVersionV6 MonitorsIpVersion = "v6"
+)
+
+func (e *MonitorsIpVersion) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MonitorsIpVersion(s)
+	case string:
+		*e = MonitorsIpVersion(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MonitorsIpVersion: %T", src)
+	}
+	return nil
+}
+
+type NullMonitorsIpVersion struct {
+	MonitorsIpVersion MonitorsIpVersion `json:"monitors_ip_version"`
+	Valid             bool              `json:"valid"` // Valid is true if MonitorsIpVersion is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMonitorsIpVersion) Scan(value interface{}) error {
+	if value == nil {
+		ns.MonitorsIpVersion, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MonitorsIpVersion.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMonitorsIpVersion) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MonitorsIpVersion), nil
+}
+
+type MonitorsStatus string
+
+const (
+	MonitorsStatusPending MonitorsStatus = "pending"
+	MonitorsStatusTesting MonitorsStatus = "testing"
+	MonitorsStatusActive  MonitorsStatus = "active"
+	MonitorsStatusPaused  MonitorsStatus = "paused"
+	MonitorsStatusDeleted MonitorsStatus = "deleted"
+)
+
+func (e *MonitorsStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MonitorsStatus(s)
+	case string:
+		*e = MonitorsStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MonitorsStatus: %T", src)
+	}
+	return nil
+}
+
+type NullMonitorsStatus struct {
+	MonitorsStatus MonitorsStatus `json:"monitors_status"`
+	Valid          bool           `json:"valid"` // Valid is true if MonitorsStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMonitorsStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.MonitorsStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MonitorsStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMonitorsStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MonitorsStatus), nil
+}
+
+type MonitorsType string
+
+const (
+	MonitorsTypeMonitor MonitorsType = "monitor"
+	MonitorsTypeScore   MonitorsType = "score"
+)
+
+func (e *MonitorsType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = MonitorsType(s)
+	case string:
+		*e = MonitorsType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for MonitorsType: %T", src)
+	}
+	return nil
+}
+
+type NullMonitorsType struct {
+	MonitorsType MonitorsType `json:"monitors_type"`
+	Valid        bool         `json:"valid"` // Valid is true if MonitorsType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullMonitorsType) Scan(value interface{}) error {
+	if value == nil {
+		ns.MonitorsType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.MonitorsType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullMonitorsType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.MonitorsType), nil
+}
 
 type ServersIpVersion string
 
@@ -93,6 +224,37 @@ func (ns NullZoneServerCountsIpVersion) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.ZoneServerCountsIpVersion), nil
+}
+
+type LogScore struct {
+	ID         uint64                   `db:"id" json:"id"`
+	MonitorID  sql.NullInt32            `db:"monitor_id" json:"monitor_id"`
+	ServerID   uint32                   `db:"server_id" json:"server_id"`
+	Ts         time.Time                `db:"ts" json:"ts"`
+	Score      float64                  `db:"score" json:"score"`
+	Step       float64                  `db:"step" json:"step"`
+	Offset     sql.NullFloat64          `db:"offset" json:"offset"`
+	Rtt        sql.NullInt32            `db:"rtt" json:"rtt"`
+	Attributes types.LogScoreAttributes `db:"attributes" json:"attributes"`
+}
+
+type Monitor struct {
+	ID            uint32                `db:"id" json:"id"`
+	Type          MonitorsType          `db:"type" json:"type"`
+	UserID        sql.NullInt32         `db:"user_id" json:"user_id"`
+	AccountID     sql.NullInt32         `db:"account_id" json:"account_id"`
+	Name          string                `db:"name" json:"name"`
+	Location      string                `db:"location" json:"location"`
+	Ip            sql.NullString        `db:"ip" json:"ip"`
+	IpVersion     NullMonitorsIpVersion `db:"ip_version" json:"ip_version"`
+	TlsName       sql.NullString        `db:"tls_name" json:"tls_name"`
+	ApiKey        sql.NullString        `db:"api_key" json:"api_key"`
+	Status        MonitorsStatus        `db:"status" json:"status"`
+	Config        string                `db:"config" json:"config"`
+	ClientVersion string                `db:"client_version" json:"client_version"`
+	LastSeen      sql.NullTime          `db:"last_seen" json:"last_seen"`
+	LastSubmit    sql.NullTime          `db:"last_submit" json:"last_submit"`
+	CreatedOn     time.Time             `db:"created_on" json:"created_on"`
 }
 
 type Server struct {
