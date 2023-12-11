@@ -2,16 +2,12 @@ package server
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptrace"
 	"net/url"
 	"os"
-	"strconv"
-	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/labstack/echo/v4"
@@ -22,8 +18,6 @@ import (
 
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
-
-	"go.ntppool.org/data-api/ntpdb"
 )
 
 func (srv *Server) graphImage(c echo.Context) error {
@@ -51,24 +45,8 @@ func (srv *Server) graphImage(c echo.Context) error {
 		return c.Redirect(308, redirectURL.String())
 	}
 
-	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
-
-	var serverData ntpdb.Server
-	var dberr error
-	if id, err := strconv.Atoi(serverID); id > 0 && err == nil {
-		serverData, dberr = q.GetServerByID(ctx, uint32(id))
-	} else {
-		serverData, dberr = q.GetServerByIP(ctx, serverID)
-	}
-	if dberr != nil {
-		if !errors.Is(dberr, sql.ErrNoRows) {
-			log.Error("could not query server id", "err", dberr)
-			return c.String(http.StatusInternalServerError, "server error")
-		}
-		return c.String(http.StatusNotFound, "not found")
-	}
-
-	if serverData.ID == 0 || (serverData.DeletionOn.Valid && serverData.DeletionOn.Time.Before(time.Now())) {
+	serverData, err := srv.FindServer(ctx, serverID)
+	if serverData.ID == 0 {
 		return c.String(http.StatusNotFound, "not found")
 	}
 
