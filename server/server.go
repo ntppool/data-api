@@ -91,6 +91,7 @@ func (srv *Server) Run() error {
 	g, _ := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
+		version.RegisterMetric("dataapi", srv.metrics.Registry())
 		return srv.metrics.ListenAndServe(ctx, 9020)
 	})
 
