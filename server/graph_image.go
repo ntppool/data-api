@@ -34,6 +34,8 @@ func (srv *Server) graphImage(c echo.Context) error {
 	log = log.With("serverID", serverID).With("type", imageType)
 	log.Info("graph parameters")
 
+	span.SetAttributes(attribute.String("url.server_parameter", serverID))
+
 	if imageType != "offset.png" {
 		return c.String(http.StatusNotFound, "invalid image name")
 	}
@@ -47,6 +49,10 @@ func (srv *Server) graphImage(c echo.Context) error {
 	}
 
 	serverData, err := srv.FindServer(ctx, serverID)
+	if err != nil {
+		span.RecordError(err)
+		return c.String(http.StatusInternalServerError, "server error")
+	}
 	if serverData.ID == 0 {
 		return c.String(http.StatusNotFound, "not found")
 	}
