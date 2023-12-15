@@ -8,6 +8,7 @@ import (
 	"net/http/httptrace"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/labstack/echo/v4"
@@ -47,6 +48,9 @@ func (srv *Server) graphImage(c echo.Context) error {
 
 	serverData, err := srv.FindServer(ctx, serverID)
 	if serverData.ID == 0 {
+		return c.String(http.StatusNotFound, "not found")
+	}
+	if serverData.DeletionAge(7 * 24 * time.Hour) {
 		return c.String(http.StatusNotFound, "not found")
 	}
 

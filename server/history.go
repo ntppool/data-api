@@ -115,6 +115,10 @@ func (srv *Server) history(c echo.Context) error {
 		span.RecordError(err)
 		return c.String(http.StatusInternalServerError, "internal error")
 	}
+	if server.DeletionAge(30 * 24 * time.Hour) {
+		span.AddEvent("server deleted")
+		return c.String(http.StatusNotFound, "server not found")
+	}
 	if server.ID == 0 {
 		span.AddEvent("server not found")
 		return c.String(http.StatusNotFound, "server not found")
