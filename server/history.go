@@ -226,7 +226,8 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		}
 	}
 
-	if history.LogScores[len(history.LogScores)-1].Ts.After(time.Now().Add(-8 * time.Hour)) {
+	if len(history.LogScores) == 0 ||
+		history.LogScores[len(history.LogScores)-1].Ts.After(time.Now().Add(-8*time.Hour)) {
 		// cache for longer if data hasn't updated for a while
 		c.Request().Header.Set("Cache-Control", "s-maxage=3600,max-age=1800")
 	} else {
