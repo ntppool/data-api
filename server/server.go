@@ -83,6 +83,8 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 func (srv *Server) Run() error {
 	log := logger.Setup()
 
+	ntpconf := config.New()
+
 	ctx, cancel := context.WithCancel(srv.ctx)
 	defer cancel()
 
@@ -189,6 +191,22 @@ func (srv *Server) Run() error {
 	e.GET("/api/usercc", srv.userCountryData)
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 	e.GET("/api/server/scores/:server/:mode", srv.history)
+
+	if len(ntpconf.WebHostname()) > 0 {
+		e.POST("/api/server/scores/:server/:mode", func(c echo.Context) error {
+			// POST requests used to work
+			mode := c.Param("mode")
+			server := c.Param("server")
+			query := c.Request().URL.Query()
+			return c.Redirect(
+				http.StatusSeeOther,
+				ntpconf.WebURL(
+					fmt.Sprintf("/scores/%s/%s", server, mode),
+					&query,
+				),
+			)
+		})
+	}
 	e.GET("/graph/:server/:type", srv.graphImage)
 
 	// e.GET("/api/server/scores/:server/:type", srv.logScores)
