@@ -138,7 +138,7 @@ func (srv *Server) Run() error {
 				span.SetAttributes(attribute.String("http.real_ip", c.RealIP()))
 
 				// since the Go library (temporarily?) isn't including this
-				span.SetAttributes(attribute.String("url.path", c.Path()))
+				span.SetAttributes(attribute.String("url.path", c.Request().RequestURI))
 				if q := c.QueryString(); len(q) > 0 {
 					span.SetAttributes(attribute.String("url.query", q))
 				}
