@@ -78,12 +78,18 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 		monitorID = 0 // don't filter on monitor ID
 	default:
 		mID, err := strconv.ParseUint(monitorParam, 10, 32)
-		if err != nil {
-			log.InfoContext(ctx, "invalid monitor parameter", "monitor", monitorParam)
-			return nil, echo.NewHTTPError(http.StatusBadRequest, "invalid monitor parameter")
-
+		if err == nil {
+			monitorID = uint32(mID)
+		} else {
+			if err != nil {
+				monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
+				if err != nil {
+					log.Warn("could not find monitor", "name", monitorParam, "err", err)
+					return nil, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
+				}
+				monitorID = monitor.ID
+			}
 		}
-		monitorID = uint32(mID)
 	}
 
 	log.Info("monitor param", "monitor", monitorID)
