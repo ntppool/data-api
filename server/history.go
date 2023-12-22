@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -79,7 +80,8 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 		mID, err := strconv.ParseUint(monitorParam, 10, 32)
 		if err != nil {
 			log.InfoContext(ctx, "invalid monitor parameter", "monitor", monitorParam)
-			return nil, nil
+			return nil, echo.NewHTTPError(http.StatusBadRequest, "invalid monitor parameter")
+
 		}
 		monitorID = uint32(mID)
 	}
@@ -106,29 +108,38 @@ func (srv *Server) history(c echo.Context) error {
 
 	mode := paramHistoryMode(c.Param("mode"))
 	if mode == historyModeUnknown {
-		return c.String(http.StatusNotFound, "invalid mode")
+		return echo.NewHTTPError(http.StatusNotFound, "invalid mode")
 	}
 
 	server, err := srv.FindServer(ctx, c.Param("server"))
 	if err != nil {
 		log.Error("find server", "err", err)
 		span.RecordError(err)
-		return c.String(http.StatusInternalServerError, "internal error")
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
 	if server.DeletionAge(30 * 24 * time.Hour) {
 		span.AddEvent("server deleted")
-		return c.String(http.StatusNotFound, "server not found")
+		return echo.NewHTTPError(http.StatusNotFound, "server not found")
 	}
 	if server.ID == 0 {
 		span.AddEvent("server not found")
-		return c.String(http.StatusNotFound, "server not found")
+		return echo.NewHTTPError(http.StatusNotFound, "server not found")
 	}
 
 	history, err := srv.getHistory(ctx, c, server)
 	if err != nil {
-		log.Error("get history", "err", err)
-		span.RecordError(err)
-		return c.String(http.StatusInternalServerError, "internal error")
+		var httpError *echo.HTTPError
+		if errors.As(err, &httpError) {
+			if httpError.Code >= 500 {
+				log.Error("get history", "err", err)
+				span.RecordError(err)
+			}
+			return httpError
+		} else {
+			log.Error("get history", "err", err)
+			span.RecordError(err)
+			return c.String(http.StatusInternalServerError, "internal error")
+		}
 	}
 
 	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
