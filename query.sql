@@ -48,7 +48,11 @@ where
   ip = sqlc.arg(ip);
 
 -- name: GetMonitorByName :one
-select * from monitors where tls_name = ?;
+select * from monitors
+where
+  tls_name like sqlc.arg('tls_name')
+  order by id
+  limit 1;
 
 -- name: GetMonitorsByID :many
 select * from monitors

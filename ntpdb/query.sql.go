@@ -13,7 +13,11 @@ import (
 )
 
 const getMonitorByName = `-- name: GetMonitorByName :one
-select id, type, user_id, account_id, name, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on from monitors where tls_name = ?
+select id, type, user_id, account_id, name, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on from monitors
+where
+  tls_name like ?
+  order by id
+  limit 1
 `
 
 func (q *Queries) GetMonitorByName(ctx context.Context, tlsName sql.NullString) (Monitor, error) {
