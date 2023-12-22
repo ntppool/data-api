@@ -49,10 +49,10 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 	if limitParam, err := strconv.Atoi(c.QueryParam("limit")); err == nil {
 		limit = limitParam
 	} else {
-		limit = 50
+		limit = 100
 	}
-	if limit > 4000 {
-		limit = 4000
+	if limit > 10000 {
+		limit = 10000
 	}
 
 	since, _ := strconv.ParseInt(c.QueryParam("since"), 10, 64) // defaults to 0 so don't care if it parses
