@@ -324,8 +324,10 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 
 	// log.Info("entries", "count", len(history.LogScores), "out_bytes", b.Len())
 
-	c.Request().Header.Set("Cache-Control", "s-maxage=120,max-age=120")
-
-	return c.Blob(http.StatusOK, "text/csv", b.Bytes())
+	c.Response().Header().Set("Cache-Control", "s-maxage=150,max-age=120")
+	c.Response().Header().Set("Content-Disposition", "inline")
+	// Chrome and Firefox force-download text/csv files, so use text/plain
+	// https://bugs.chromium.org/p/chromium/issues/detail?id=152911
+	return c.Blob(http.StatusOK, "text/plain", b.Bytes())
 
 }
