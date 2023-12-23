@@ -317,3 +317,21 @@ type Server struct {
 	ScoreRaw     float64          `db:"score_raw" json:"score_raw"`
 	DeletionOn   sql.NullTime     `db:"deletion_on" json:"deletion_on"`
 }
+
+type Zone struct {
+	ID          uint32         `db:"id" json:"id"`
+	Name        string         `db:"name" json:"name"`
+	Description sql.NullString `db:"description" json:"description"`
+	ParentID    sql.NullInt32  `db:"parent_id" json:"parent_id"`
+	Dns         bool           `db:"dns" json:"dns"`
+}
+
+type ZoneServerCount struct {
+	ID              uint32                    `db:"id" json:"id"`
+	ZoneID          uint32                    `db:"zone_id" json:"zone_id"`
+	IpVersion       ZoneServerCountsIpVersion `db:"ip_version" json:"ip_version"`
+	Date            time.Time                 `db:"date" json:"date"`
+	CountActive     uint32                    `db:"count_active" json:"count_active"`
+	CountRegistered uint32                    `db:"count_registered" json:"count_registered"`
+	NetspeedActive  uint32                    `db:"netspeed_active" json:"netspeed_active"`
+}

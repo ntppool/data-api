@@ -263,6 +263,52 @@ func (_d QuerierTxWithTracing) GetServerScores(ctx context.Context, arg GetServe
 	return _d.QuerierTx.GetServerScores(ctx, arg)
 }
 
+// GetZoneByName implements QuerierTx
+func (_d QuerierTxWithTracing) GetZoneByName(ctx context.Context, name string) (z1 Zone, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetZoneByName")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx":  ctx,
+				"name": name}, map[string]interface{}{
+				"z1":  z1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetZoneByName(ctx, name)
+}
+
+// GetZoneCounts implements QuerierTx
+func (_d QuerierTxWithTracing) GetZoneCounts(ctx context.Context, zoneID uint32) (za1 []ZoneServerCount, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetZoneCounts")
+	defer func() {
+		if _d._spanDecorator != nil {
+			_d._spanDecorator(_span, map[string]interface{}{
+				"ctx":    ctx,
+				"zoneID": zoneID}, map[string]interface{}{
+				"za1": za1,
+				"err": err})
+		} else if err != nil {
+			_span.RecordError(err)
+			_span.SetAttributes(
+				attribute.String("event", "error"),
+				attribute.String("message", err.Error()),
+			)
+		}
+
+		_span.End()
+	}()
+	return _d.QuerierTx.GetZoneCounts(ctx, zoneID)
+}
+
 // GetZoneStatsData implements QuerierTx
 func (_d QuerierTxWithTracing) GetZoneStatsData(ctx context.Context) (ga1 []GetZoneStatsDataRow, err error) {
 	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetZoneStatsData")

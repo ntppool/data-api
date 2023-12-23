@@ -333,6 +333,62 @@ func (q *Queries) GetServerScores(ctx context.Context, arg GetServerScoresParams
 	return items, nil
 }
 
+const getZoneByName = `-- name: GetZoneByName :one
+select id, name, description, parent_id, dns from zones
+where
+  name = ?
+`
+
+func (q *Queries) GetZoneByName(ctx context.Context, name string) (Zone, error) {
+	row := q.db.QueryRowContext(ctx, getZoneByName, name)
+	var i Zone
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.ParentID,
+		&i.Dns,
+	)
+	return i, err
+}
+
+const getZoneCounts = `-- name: GetZoneCounts :many
+select id, zone_id, ip_version, date, count_active, count_registered, netspeed_active from zone_server_counts
+  where zone_id = ?
+  order by date
+`
+
+func (q *Queries) GetZoneCounts(ctx context.Context, zoneID uint32) ([]ZoneServerCount, error) {
+	rows, err := q.db.QueryContext(ctx, getZoneCounts, zoneID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ZoneServerCount
+	for rows.Next() {
+		var i ZoneServerCount
+		if err := rows.Scan(
+			&i.ID,
+			&i.ZoneID,
+			&i.IpVersion,
+			&i.Date,
+			&i.CountActive,
+			&i.CountRegistered,
+			&i.NetspeedActive,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getZoneStatsData = `-- name: GetZoneStatsData :many
 SELECT zc.date, z.name, zc.ip_version, count_active, count_registered, netspeed_active
 FROM zone_server_counts zc USE INDEX (date_idx)

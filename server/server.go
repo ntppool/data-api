@@ -195,7 +195,7 @@ func (srv *Server) Run() error {
 
 	if len(ntpconf.WebHostname()) > 0 {
 		e.POST("/api/server/scores/:server/:mode", func(c echo.Context) error {
-			// POST requests used to work
+			// POST requests used to work, so make them not error out
 			mode := c.Param("mode")
 			server := c.Param("server")
 			query := c.Request().URL.Query()
@@ -210,7 +210,7 @@ func (srv *Server) Run() error {
 	}
 	e.GET("/graph/:server/:type", srv.graphImage)
 
-	// e.GET("/api/server/scores/:server/:type", srv.logScores)
+	e.GET("/api/zone/counts/:zone_name", srv.zoneCounts)
 
 	g.Go(func() error {
 		return e.Start(":8030")

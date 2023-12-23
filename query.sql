@@ -83,3 +83,13 @@ where
   monitor_id = ?
   order by ts desc
   limit ?;
+
+-- name: GetZoneByName :one
+select * from zones
+where
+  name = sqlc.arg(name);
+
+-- name: GetZoneCounts :many
+select * from zone_server_counts
+  where zone_id = ?
+  order by date;
