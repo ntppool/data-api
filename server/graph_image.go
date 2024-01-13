@@ -32,7 +32,7 @@ func (srv *Server) graphImage(c echo.Context) error {
 	serverID := c.Param("server")
 	imageType := c.Param("type")
 	log = log.With("serverID", serverID).With("type", imageType)
-	log.Info("graph parameters")
+	log.InfoContext(ctx, "graph parameters")
 
 	span.SetAttributes(attribute.String("url.server_parameter", serverID))
 
