@@ -99,7 +99,7 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 		}
 	}
 
-	log.Info("monitor param", "monitor", monitorID)
+	log.DebugContext(ctx, "monitor param", "monitor", monitorID)
 
 	sinceTime := time.Unix(since, 0)
 	if since > 0 {
