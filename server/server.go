@@ -69,14 +69,13 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 
 	tpShutdown, err := tracing.InitTracer(ctx, &tracing.TracerConfig{
 		ServiceName: "data-api",
-		Environment: "",
+		Environment: conf.DeploymentMode(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	srv.tpShutdown = append(srv.tpShutdown, tpShutdown)
-	// srv.tracer = tracing.Tracer()
 	return srv, nil
 }
 
@@ -157,7 +156,6 @@ func (srv *Server) Run() error {
 		vinfo := version.VersionInfo()
 		v := "data-api/" + vinfo.Version + "+" + vinfo.GitRevShort
 		return func(c echo.Context) error {
-
 			c.Response().Header().Set(echo.HeaderServer, v)
 			return next(c)
 		}
