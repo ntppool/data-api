@@ -10,6 +10,7 @@ import (
 	"go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type LogScoreHistory struct {
@@ -18,19 +19,20 @@ type LogScoreHistory struct {
 	// MonitorIDs []uint32
 }
 
-func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
+func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, serverID, monitorID uint32, since time.Time, count int, fullHistory bool) (*LogScoreHistory, error) {
 	log := logger.FromContext(ctx)
-	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryClickHouse")
+	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryClickHouse",
+		trace.WithAttributes(
+			attribute.Int("server", int(serverID)),
+			attribute.Int("monitor", int(monitorID)),
+			attribute.Bool("full_history", fullHistory),
+		),
+	)
 	defer span.End()
 
-	span.SetAttributes(
-		attribute.Int("server", int(serverID)),
-		attribute.Int("monitor", int(monitorID)),
-	)
+	log.DebugContext(ctx, "GetHistoryCH", "server", serverID, "monitor", monitorID, "since", since, "count", count, "full_history", fullHistory)
 
-	log.Debug("GetHistoryCH", "server", serverID, "monitor", monitorID, "since", since, "count", count)
-
-	ls, err := ch.Logscores(ctx, int(serverID), int(monitorID), since, count)
+	ls, err := ch.Logscores(ctx, int(serverID), int(monitorID), since, count, fullHistory)
 
 	if err != nil {
 		log.ErrorContext(ctx, "clickhouse logscores", "err", err)
@@ -47,7 +49,6 @@ func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, 
 	return &LogScoreHistory{
 		LogScores: ls,
 		Monitors:  monitors,
-		// MonitorIDs: monitorIDs,
 	}, nil
 }
 

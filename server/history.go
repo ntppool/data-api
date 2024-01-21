@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -44,10 +45,11 @@ func paramHistoryMode(s string) historyMode {
 }
 
 type historyParameters struct {
-	limit     int
-	monitorID int
-	server    ntpdb.Server
-	since     time.Time
+	limit       int
+	monitorID   int
+	server      ntpdb.Server
+	since       time.Time
+	fullHistory bool
 }
 
 func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (historyParameters, error) {
@@ -65,7 +67,6 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 	if limit > 10000 {
 		limit = 10000
 	}
-
 	p.limit = limit
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
@@ -113,15 +114,23 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 	if since > 0 {
 		p.since = time.Unix(since, 0)
 	}
-	if !p.since.IsZero() {
-		log.Warn("monitor data requested with since parameter", "since", p.since)
+
+	clientIP, err := netip.ParseAddr(c.RealIP())
+	if err != nil {
+		return p, err
+	}
+
+	// log.DebugContext(ctx, "client ip", "client_ip", clientIP.String())
+
+	if clientIP.IsPrivate() || clientIP.IsLoopback() { // don't allow this through the ingress or CDN
+		if fullParam := c.QueryParam("full_history"); len(fullParam) > 0 {
+			if t, _ := strconv.ParseBool(fullParam); t {
+				p.fullHistory = true
+			}
+		}
 	}
 
 	return p, nil
-}
-
-func (srv *Server) getHistoryCH(ctx context.Context, c echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
-	return logscores.GetHistoryClickHouse(ctx, srv.ch, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit)
 }
 
 func (srv *Server) getHistoryMySQL(ctx context.Context, c echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
@@ -179,7 +188,7 @@ func (srv *Server) history(c echo.Context) error {
 	if sourceParam == "m" {
 		history, err = srv.getHistoryMySQL(ctx, c, p)
 	} else {
-		history, err = srv.getHistoryCH(ctx, c, p)
+		history, err = logscores.GetHistoryClickHouse(ctx, srv.ch, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit, p.fullHistory)
 	}
 	if err != nil {
 		var httpError *echo.HTTPError
