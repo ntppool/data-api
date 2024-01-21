@@ -36,7 +36,7 @@ func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, da
 	ctx, span := tracing.Tracer().Start(ctx, "ServerAnswerCounts")
 	defer span.End()
 
-	conn := d.conn
+	conn := d.Logs
 
 	log := logger.Setup().With("server", serverIP)
 
@@ -100,7 +100,7 @@ func (d *ClickHouse) AnswerTotals(ctx context.Context, qtype string, days int) (
 	defer span.End()
 
 	// queries by UserCC / Qtype for the ServerIP
-	rows, err := d.conn.Query(clickhouse.Context(ctx,
+	rows, err := d.Logs.Query(clickhouse.Context(ctx,
 		clickhouse.WithSpan(span.SpanContext()),
 	), `
 	select UserCC,Qtype,sum(queries) as queries

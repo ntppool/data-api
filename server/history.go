@@ -42,8 +42,17 @@ func paramHistoryMode(s string) historyMode {
 	}
 }
 
-func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.Server) (*logscores.LogScoreHistory, error) {
-	log := logger.Setup()
+type historyParameters struct {
+	limit     int
+	monitorID int
+	server    ntpdb.Server
+	since     time.Time
+}
+
+func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (historyParameters, error) {
+	log := logger.FromContext(ctx)
+
+	p := historyParameters{}
 
 	limit := 0
 	if limitParam, err := strconv.Atoi(c.QueryParam("limit")); err == nil {
@@ -51,19 +60,16 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 	} else {
 		limit = 100
 	}
+
 	if limit > 10000 {
 		limit = 10000
 	}
 
-	since, _ := strconv.ParseInt(c.QueryParam("since"), 10, 64) // defaults to 0 so don't care if it parses
-
-	monitorParam := c.QueryParam("monitor")
-
-	if since > 0 {
-		c.Request().Header.Set("Cache-Control", "s-maxage=300")
-	}
+	p.limit = limit
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
+
+	monitorParam := c.QueryParam("monitor")
 
 	var monitorID uint32 = 0
 	switch monitorParam {
@@ -84,7 +90,7 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 			// only accept the name prefix; no wildcards; trust the database
 			// to filter out any other crazy
 			if strings.ContainsAny(monitorParam, "_%. \t\n") {
-				return nil, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
+				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
 			}
 
 			if err != nil {
@@ -92,22 +98,33 @@ func (srv *Server) getHistory(ctx context.Context, c echo.Context, server ntpdb.
 				monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
 				if err != nil {
 					log.Warn("could not find monitor", "name", monitorParam, "err", err)
-					return nil, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
+					return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
 				}
 				monitorID = monitor.ID
 			}
 		}
 	}
 
+	p.monitorID = int(monitorID)
 	log.DebugContext(ctx, "monitor param", "monitor", monitorID)
 
-	sinceTime := time.Unix(since, 0)
+	since, _ := strconv.ParseInt(c.QueryParam("since"), 10, 64) // defaults to 0 so don't care if it parses
 	if since > 0 {
-		log.Warn("monitor data requested with since parameter, not supported", "since", sinceTime)
+		p.since = time.Unix(since, 0)
+	}
+	if !p.since.IsZero() {
+		log.Warn("monitor data requested with since parameter", "since", p.since)
 	}
 
-	ls, err := logscores.GetHistory(ctx, srv.db, server.ID, monitorID, sinceTime, limit)
+	return p, nil
+}
 
+func (srv *Server) getHistoryCH(ctx context.Context, c echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
+	return logscores.GetHistoryClickHouse(ctx, srv.ch, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit)
+}
+
+func (srv *Server) getHistoryMySQL(ctx context.Context, c echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
+	ls, err := logscores.GetHistoryMySQL(ctx, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit)
 	return ls, err
 }
 
@@ -122,6 +139,13 @@ func (srv *Server) history(c echo.Context) error {
 	mode := paramHistoryMode(c.Param("mode"))
 	if mode == historyModeUnknown {
 		return echo.NewHTTPError(http.StatusNotFound, "invalid mode")
+	}
+
+	p, err := srv.getHistoryParameters(ctx, c)
+	if err != nil {
+		log.Error("get history parameters", "err", err)
+		span.RecordError(err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
 
 	server, err := srv.FindServer(ctx, c.Param("server"))
@@ -139,7 +163,15 @@ func (srv *Server) history(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "server not found")
 	}
 
-	history, err := srv.getHistory(ctx, c, server)
+	p.server = server
+
+	var history *logscores.LogScoreHistory
+
+	if c.QueryParam("source") == "c" {
+		history, err = srv.getHistoryCH(ctx, c, p)
+	} else {
+		history, err = srv.getHistoryMySQL(ctx, c, p)
+	}
 	if err != nil {
 		var httpError *echo.HTTPError
 		if errors.As(err, &httpError) {
@@ -202,10 +234,15 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 
 	// log.InfoContext(ctx, "monitor id list", "ids", history.MonitorIDs)
 
+	monitorIDs := []uint32{}
+	for k := range history.Monitors {
+		monitorIDs = append(monitorIDs, uint32(k))
+	}
+
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
 	logScoreMonitors, err := q.GetServerScores(ctx,
 		ntpdb.GetServerScoresParams{
-			MonitorIDs: history.MonitorIDs,
+			MonitorIDs: monitorIDs,
 			ServerID:   server.ID,
 		},
 	)

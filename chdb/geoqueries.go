@@ -36,7 +36,7 @@ func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) 
 	ctx, span := tracing.Tracer().Start(ctx, "UserCountryData")
 	defer span.End()
 
-	rows, err := d.conn.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
+	rows, err := d.Logs.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
 		"select max(dt) as d,UserCC,Qtype,sum(queries) as queries from by_usercc_1d where dt > now() - INTERVAL 4 DAY group by rollup(Qtype,UserCC) order by UserCC,Qtype;")
 	if err != nil {
 		log.ErrorContext(ctx, "query error", "err", err)

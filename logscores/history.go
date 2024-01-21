@@ -7,31 +7,61 @@ import (
 
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
+	"go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
 	"go.opentelemetry.io/otel/attribute"
 )
 
 type LogScoreHistory struct {
-	LogScores  []ntpdb.LogScore
-	Monitors   map[int]string
-	MonitorIDs []uint32
+	LogScores []ntpdb.LogScore
+	Monitors  map[int]string
+	// MonitorIDs []uint32
 }
 
-func GetHistory(ctx context.Context, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
-	log := logger.Setup()
-	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistory")
+func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
+	log := logger.FromContext(ctx)
+	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryClickHouse")
 	defer span.End()
-
-	if count == 0 {
-		count = 200
-	}
 
 	span.SetAttributes(
 		attribute.Int("server", int(serverID)),
 		attribute.Int("monitor", int(monitorID)),
 	)
 
-	log.Debug("GetHistory", "server", serverID, "monitor", monitorID, "since", since, "count", count)
+	log.Debug("GetHistoryCH", "server", serverID, "monitor", monitorID, "since", since, "count", count)
+
+	ls, err := ch.Logscores(ctx, int(serverID), int(monitorID), since, count)
+
+	if err != nil {
+		log.ErrorContext(ctx, "clickhouse logscores", "err", err)
+		return nil, err
+	}
+
+	q := ntpdb.NewWrappedQuerier(ntpdb.New(db))
+
+	monitors, err := getMonitorNames(ctx, ls, q)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LogScoreHistory{
+		LogScores: ls,
+		Monitors:  monitors,
+		// MonitorIDs: monitorIDs,
+	}, nil
+}
+
+func GetHistoryMySQL(ctx context.Context, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
+	log := logger.FromContext(ctx)
+	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryMySQL")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.Int("server", int(serverID)),
+		attribute.Int("monitor", int(monitorID)),
+	)
+
+	log.Debug("GetHistoryMySQL", "server", serverID, "monitor", monitorID, "since", since, "count", count)
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(db))
 
@@ -53,6 +83,19 @@ func GetHistory(ctx context.Context, db *sql.DB, serverID, monitorID uint32, sin
 		return nil, err
 	}
 
+	monitors, err := getMonitorNames(ctx, ls, q)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LogScoreHistory{
+		LogScores: ls,
+		Monitors:  monitors,
+		// MonitorIDs: monitorIDs,
+	}, nil
+}
+
+func getMonitorNames(ctx context.Context, ls []ntpdb.LogScore, q ntpdb.QuerierTx) (map[int]string, error) {
 	monitors := map[int]string{}
 	monitorIDs := []uint32{}
 	for _, l := range ls {
@@ -73,10 +116,5 @@ func GetHistory(ctx context.Context, db *sql.DB, serverID, monitorID uint32, sin
 	for _, m := range dbmons {
 		monitors[int(m.ID)] = m.DisplayName()
 	}
-
-	return &LogScoreHistory{
-		LogScores:  ls,
-		Monitors:   monitors,
-		MonitorIDs: monitorIDs,
-	}, nil
+	return monitors, nil
 }

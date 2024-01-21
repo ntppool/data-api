@@ -2,35 +2,82 @@ package chdb
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
+	"gopkg.in/yaml.v3"
 
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/version"
 )
 
+type Config struct {
+	ClickHouse struct {
+		Scores DBConfig `yaml:"scores"`
+		Logs   DBConfig `yaml:"logs"`
+	} `yaml:"clickhouse"`
+}
+
+type DBConfig struct {
+	Host     string
+	Database string
+}
+
 type ClickHouse struct {
-	conn clickhouse.Conn
+	Logs   clickhouse.Conn
+	Scores clickhouse.Conn
 }
 
 func New(ctx context.Context, dbConfigPath string) (*ClickHouse, error) {
-	conn, err := setupClickhouse(ctx)
+	ch, err := setupClickhouse(ctx, dbConfigPath)
 	if err != nil {
 		return nil, err
 	}
-	return &ClickHouse{conn: conn}, nil
+	return ch, nil
 }
 
-func setupClickhouse(ctx context.Context) (driver.Conn, error) {
+func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error) {
 
+	log := logger.FromContext(ctx)
+
+	log.InfoContext(ctx, "opening config", "file", configFile)
+
+	dbFile, err := os.Open(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	dec := yaml.NewDecoder(dbFile)
+
+	cfg := Config{}
+
+	err = dec.Decode(&cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	ch := &ClickHouse{}
+
+	ch.Logs, err = open(ctx, cfg.ClickHouse.Logs)
+	if err != nil {
+		return nil, err
+	}
+	ch.Scores, err = open(ctx, cfg.ClickHouse.Scores)
+	if err != nil {
+		return nil, err
+	}
+
+	return ch, nil
+}
+
+func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 	log := logger.Setup()
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{"10.43.207.123:9000"},
+		Addr: []string{cfg.Host + ":9000"},
 		Auth: clickhouse.Auth{
-			Database: "geodns3",
+			Database: cfg.Database,
 			Username: "default",
 			Password: "",
 		},
