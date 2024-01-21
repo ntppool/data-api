@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -167,10 +168,18 @@ func (srv *Server) history(c echo.Context) error {
 
 	var history *logscores.LogScoreHistory
 
-	if c.QueryParam("source") == "c" {
-		history, err = srv.getHistoryCH(ctx, c, p)
-	} else {
+	sourceParam := c.QueryParam("source")
+	switch sourceParam {
+	case "m":
+	case "c":
+	default:
+		sourceParam = os.Getenv("default_source")
+	}
+
+	if sourceParam == "m" {
 		history, err = srv.getHistoryMySQL(ctx, c, p)
+	} else {
+		history, err = srv.getHistoryCH(ctx, c, p)
 	}
 	if err != nil {
 		var httpError *echo.HTTPError
