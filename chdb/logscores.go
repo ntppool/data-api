@@ -60,7 +60,10 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 
 	log.DebugContext(ctx, "clickhouse query", "query", query, "args", args)
 
-	rows, err := d.Scores.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
+	rows, err := d.Scores.Query(
+		clickhouse.Context(
+			ctx, clickhouse.WithSpan(span.SpanContext()),
+		),
 		query, args...,
 	)
 	if err != nil {
@@ -74,6 +77,8 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 
 		row := ntpdb.LogScore{}
 
+		var leap uint8
+
 		if err := rows.Scan(
 			&row.ID,
 			&row.MonitorID,
@@ -83,13 +88,15 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 			&row.Step,
 			&row.Offset,
 			&row.Rtt,
-			&row.Attributes.Leap,
+			&leap,
 			&row.Attributes.Warning,
 			&row.Attributes.Error,
 		); err != nil {
 			log.Error("could not parse row", "err", err)
 			continue
 		}
+
+		row.Attributes.Leap = int8(leap)
 
 		rv = append(rv, row)
 
