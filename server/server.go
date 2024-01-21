@@ -10,6 +10,7 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	slogecho "github.com/samber/slog-echo"
@@ -123,6 +124,9 @@ func (srv *Server) Run() error {
 
 	e.IPExtractor = echo.ExtractIPFromXFFHeader(trustOptions...)
 
+	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
+		Registerer: srv.metrics.Registry(),
+	}))
 	e.Use(otelecho.Middleware("data-api"))
 	e.Use(slogecho.NewWithConfig(log,
 		slogecho.Config{
