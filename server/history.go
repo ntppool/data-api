@@ -95,15 +95,14 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
 			}
 
+			monitorParam = monitorParam + ".%"
+			monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
 			if err != nil {
-				monitorParam = monitorParam + ".%"
-				monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
-				if err != nil {
-					log.Warn("could not find monitor", "name", monitorParam, "err", err)
-					return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
-				}
-				monitorID = monitor.ID
+				log.Warn("could not find monitor", "name", monitorParam, "err", err)
+				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
 			}
+			monitorID = monitor.ID
+
 		}
 	}
 
@@ -133,7 +132,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 	return p, nil
 }
 
-func (srv *Server) getHistoryMySQL(ctx context.Context, c echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
+func (srv *Server) getHistoryMySQL(ctx context.Context, _ echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
 	ls, err := logscores.GetHistoryMySQL(ctx, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit)
 	return ls, err
 }
