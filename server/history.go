@@ -98,7 +98,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 			monitorParam = monitorParam + ".%"
 			monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
 			if err != nil {
-				log.Warn("could not find monitor", "name", monitorParam, "err", err)
+				log.WarnContext(ctx, "could not find monitor", "name", monitorParam, "err", err)
 				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
 			}
 			monitorID = monitor.ID
@@ -152,14 +152,20 @@ func (srv *Server) history(c echo.Context) error {
 
 	p, err := srv.getHistoryParameters(ctx, c)
 	if err != nil {
-		log.Error("get history parameters", "err", err)
+		if he, ok := err.(*echo.HTTPError); ok {
+			return he
+		}
+		log.ErrorContext(ctx, "get history parameters", "err", err)
 		span.RecordError(err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
 
 	server, err := srv.FindServer(ctx, c.Param("server"))
 	if err != nil {
-		log.Error("find server", "err", err)
+		log.ErrorContext(ctx, "find server", "err", err)
+		if he, ok := err.(*echo.HTTPError); ok {
+			return he
+		}
 		span.RecordError(err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
