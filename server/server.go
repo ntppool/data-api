@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 
@@ -102,6 +103,8 @@ func (srv *Server) Run() error {
 	e := echo.New()
 	srv.tpShutdown = append(srv.tpShutdown, e.Shutdown)
 
+	e.Debug = false
+
 	trustOptions := []echo.TrustOption{
 		echo.TrustLoopback(true),
 		echo.TrustLinkLocal(false),
@@ -128,9 +131,13 @@ func (srv *Server) Run() error {
 		Registerer: srv.metrics.Registry(),
 	}))
 	e.Use(otelecho.Middleware("data-api"))
+
 	e.Use(slogecho.NewWithConfig(log,
 		slogecho.Config{
-			WithTraceID: false, // done by logger already
+			WithTraceID:      false, // done by logger already
+			DefaultLevel:     slog.LevelInfo,
+			ClientErrorLevel: slog.LevelWarn,
+			ServerErrorLevel: slog.LevelError,
 			// WithRequestHeader: true,
 		},
 	))

@@ -98,8 +98,11 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 			monitorParam = monitorParam + ".%"
 			monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
 			if err != nil {
+				if err == sql.ErrNoRows {
+					return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found").WithInternal(err)
+				}
 				log.WarnContext(ctx, "could not find monitor", "name", monitorParam, "err", err)
-				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found")
+				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found (sql)")
 			}
 			monitorID = monitor.ID
 
