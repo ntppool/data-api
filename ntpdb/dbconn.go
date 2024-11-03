@@ -70,11 +70,11 @@ func createConnector(configFile string) CreateConnectorFunc {
 			return nil, err
 		}
 
-		if user := cfg.MySQL.User; len(user) > 0 && err == nil {
+		if user := cfg.MySQL.User; len(user) > 0 {
 			dbcfg.User = user
 		}
 
-		if pass := cfg.MySQL.Pass; len(pass) > 0 && err == nil {
+		if pass := cfg.MySQL.Pass; len(pass) > 0 {
 			dbcfg.Passwd = pass
 		}
 

@@ -19,7 +19,6 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 	recentFirst := true
 
 	if since.IsZero() && !fullHistory {
-		log.WarnContext(ctx, "resetting since to 4 days ago")
 		since = time.Now().Add(4 * -24 * time.Hour)
 	} else {
 		recentFirst = false
