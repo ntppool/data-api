@@ -27,8 +27,8 @@ func OpenDB(configFile string) (*sql.DB, error) {
 	dbconn := sql.OpenDB(Driver{CreateConnectorFunc: createConnector(configFile)})
 
 	dbconn.SetConnMaxLifetime(time.Minute * 3)
-	dbconn.SetMaxOpenConns(10)
-	dbconn.SetMaxIdleConns(5)
+	dbconn.SetMaxOpenConns(8)
+	dbconn.SetMaxIdleConns(3)
 
 	err := dbconn.Ping()
 	if err != nil {

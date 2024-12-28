@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
+	"time"
 
 	"golang.org/x/sync/errgroup"
 
@@ -97,7 +99,10 @@ func (srv *Server) Run() error {
 	})
 
 	g.Go(func() error {
-		return health.HealthCheckListener(ctx, 9019, log.WithGroup("health"))
+		hclog := log.WithGroup("health")
+		hc := health.NewServer(healthHandler(srv, hclog))
+		hc.SetLogger(hclog)
+		return hc.Listen(ctx, 9019)
 	})
 
 	e := echo.New()
@@ -270,4 +275,54 @@ func (srv *Server) userCountryData(c echo.Context) error {
 		ZoneStats:   zoneStats,
 	})
 
+}
+
+func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, req *http.Request) {
+
+	return func(w http.ResponseWriter, req *http.Request) {
+
+		ctx := req.Context()
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		g, ctx := errgroup.WithContext(ctx)
+
+		stats := srv.db.Stats()
+		log.InfoContext(ctx, "health requests", "url", req.URL.String(), "stats", stats)
+
+		reset, err := strconv.ParseBool(req.URL.Query().Get("reset"))
+		log.InfoContext(ctx, "db reset request", "err", err, "reset", reset)
+
+		if err == nil && reset {
+			log.InfoContext(ctx, "setting idle db conns to zero")
+			srv.db.SetMaxIdleConns(0)
+			srv.db.SetConnMaxLifetime(5 * time.Second)
+		}
+
+		g.Go(func() error {
+			err := srv.ch.Scores.Ping(ctx)
+			if err != nil {
+				log.WarnContext(ctx, "ch ping", "err", err)
+				return err
+			}
+			return nil
+		})
+
+		g.Go(func() error {
+			err := srv.db.PingContext(ctx)
+			if err != nil {
+				log.WarnContext(ctx, "db ping", "err", err)
+				return err
+			}
+			return nil
+		})
+
+		err = g.Wait()
+		if err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("db ping err"))
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("ok"))
+	}
 }
