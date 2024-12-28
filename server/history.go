@@ -73,7 +73,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 
 	monitorParam := c.QueryParam("monitor")
 
-	var monitorID uint32 = 0
+	var monitorID uint32
 	switch monitorParam {
 	case "":
 		name := "recentmedian.scores.ntp.dev"
@@ -223,7 +223,6 @@ func (srv *Server) history(c echo.Context) error {
 	default:
 		return c.String(http.StatusNotFound, "not implemented")
 	}
-
 }
 
 func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb.Server, history *logscores.LogScoreHistory) error {
@@ -326,12 +325,13 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 	}
 
 	return c.JSON(http.StatusOK, res)
-
 }
 
 func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logscores.LogScoreHistory) error {
 	log := logger.Setup()
 	ctx, span := tracing.Tracer().Start(ctx, "history.csv")
+	defer span.End()
+
 	b := bytes.NewBuffer([]byte{})
 	w := csv.NewWriter(b)
 
@@ -342,7 +342,11 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 		return s
 	}
 
-	w.Write([]string{"ts_epoch", "ts", "offset", "step", "score", "monitor_id", "monitor_name", "leap", "error"})
+	err := w.Write([]string{"ts_epoch", "ts", "offset", "step", "score", "monitor_id", "monitor_name", "leap", "error"})
+	if err != nil {
+		log.ErrorContext(ctx, "could not write csv header", "err", err)
+		return err
+	}
 	for _, l := range history.LogScores {
 		// log.Debug("csv line", "id", l.ID, "n", i)
 
@@ -381,7 +385,6 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 	w.Flush()
 	if err := w.Error(); err != nil {
 		log.ErrorContext(ctx, "could not flush csv", "err", err)
-		span.End()
 		return c.String(http.StatusInternalServerError, "csv error")
 	}
 
@@ -392,5 +395,4 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 	// Chrome and Firefox force-download text/csv files, so use text/plain
 	// https://bugs.chromium.org/p/chromium/issues/detail?id=152911
 	return c.Blob(http.StatusOK, "text/plain", b.Bytes())
-
 }

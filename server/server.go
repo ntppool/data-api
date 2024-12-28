@@ -76,7 +76,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 		Environment: conf.DeploymentMode(),
 	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("tracing init: %w", err)
 	}
 
 	srv.tpShutdown = append(srv.tpShutdown, tpShutdown)
@@ -274,13 +274,10 @@ func (srv *Server) userCountryData(c echo.Context) error {
 		UserCountry: data,
 		ZoneStats:   zoneStats,
 	})
-
 }
 
 func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, req *http.Request) {
-
 	return func(w http.ResponseWriter, req *http.Request) {
-
 		ctx := req.Context()
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
@@ -319,10 +316,16 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		err = g.Wait()
 		if err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte("db ping err"))
+			_, err = w.Write([]byte("db ping err"))
+			if err != nil {
+				log.ErrorContext(ctx, "could not write response", "err", err)
+			}
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("ok"))
+		_, err = w.Write([]byte("ok"))
+		if err != nil {
+			log.ErrorContext(ctx, "could not write response", "err", err)
+		}
 	}
 }
