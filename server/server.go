@@ -284,15 +284,19 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		g, ctx := errgroup.WithContext(ctx)
 
 		stats := srv.db.Stats()
-		log.InfoContext(ctx, "health requests", "url", req.URL.String(), "stats", stats)
+		if stats.OpenConnections > 5 {
+			log.InfoContext(ctx, "health requests", "url", req.URL.String(), "stats", stats)
+		}
 
-		reset, err := strconv.ParseBool(req.URL.Query().Get("reset"))
-		log.InfoContext(ctx, "db reset request", "err", err, "reset", reset)
+		if resetParam := req.URL.Query().Get("reset"); resetParam != "" {
+			reset, err := strconv.ParseBool(resetParam)
+			log.InfoContext(ctx, "db reset request", "err", err, "reset", reset)
 
-		if err == nil && reset {
-			log.InfoContext(ctx, "setting idle db conns to zero")
-			srv.db.SetMaxIdleConns(0)
-			srv.db.SetConnMaxLifetime(5 * time.Second)
+			if err == nil && reset {
+				log.InfoContext(ctx, "setting idle db conns to zero")
+				srv.db.SetMaxIdleConns(0)
+				srv.db.SetConnMaxLifetime(5 * time.Second)
+			}
 		}
 
 		g.Go(func() error {
@@ -313,7 +317,7 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 			return nil
 		})
 
-		err = g.Wait()
+		err := g.Wait()
 		if err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, err = w.Write([]byte("db ping err"))
