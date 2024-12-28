@@ -21,7 +21,7 @@ steps:
         memory: 100MiB
 
   - name: test
-    image: golang:1.23.2
+    image: golang:1.23.4
     volumes:
       - name: go
         path: /go
@@ -32,7 +32,7 @@ steps:
       - go build ./...
 
   - name: goreleaser
-    image: golang:1.23.2
+    image: golang:1.23.4
     resources:
       requests:
         cpu: 6000
@@ -81,6 +81,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 20edcc0ee2cade503ac7ae739319c73725d6c05d23c89814b2e8cbf997148a45
+hmac: f9c2145e25810c18afed02f1092a1910894c6924873f9d1d7fdc492ebe6e8555
 
 ...

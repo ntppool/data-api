@@ -1,3 +1,5 @@
+version: 2
+
 before:
   # we don't want this in the CI environment
   #hooks:
