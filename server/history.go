@@ -145,7 +145,8 @@ func (srv *Server) history(c echo.Context) error {
 	ctx, span := tracing.Tracer().Start(c.Request().Context(), "history")
 	defer span.End()
 
-	// just cache for a short time by default
+	// set a reasonable default cache time; adjusted later for
+	// happy path common responses
 	c.Response().Header().Set("Cache-Control", "public,max-age=240")
 
 	mode := paramHistoryMode(c.Param("mode"))
@@ -316,13 +317,7 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		}
 	}
 
-	if len(history.LogScores) == 0 ||
-		history.LogScores[len(history.LogScores)-1].Ts.After(time.Now().Add(-8*time.Hour)) {
-		// cache for longer if data hasn't updated for a while
-		c.Request().Header.Set("Cache-Control", "s-maxage=3600,max-age=1800")
-	} else {
-		c.Request().Header.Set("Cache-Control", "s-maxage=300,max-age=240")
-	}
+	setHistoryCacheControl(c, history)
 
 	return c.JSON(http.StatusOK, res)
 }
@@ -390,9 +385,26 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 
 	// log.Info("entries", "count", len(history.LogScores), "out_bytes", b.Len())
 
-	c.Response().Header().Set("Cache-Control", "s-maxage=150,max-age=120")
+	setHistoryCacheControl(c, history)
+
 	c.Response().Header().Set("Content-Disposition", "inline")
 	// Chrome and Firefox force-download text/csv files, so use text/plain
 	// https://bugs.chromium.org/p/chromium/issues/detail?id=152911
 	return c.Blob(http.StatusOK, "text/plain", b.Bytes())
+}
+
+func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) {
+	hdr := c.Response().Header()
+	if len(history.LogScores) == 0 ||
+		// cache for longer if data hasn't updated for a while; or we didn't
+		// find any.
+		(time.Now().Add(-8 * time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts)) {
+		hdr.Set("Cache-Control", "s-maxage=3600,max-age=1800")
+	} else {
+		if len(history.LogScores) == 1 {
+			hdr.Set("Cache-Control", "s-maxage=60,max-age=35")
+		} else {
+			hdr.Set("Cache-Control", "s-maxage=240,max-age=120")
+		}
+	}
 }
