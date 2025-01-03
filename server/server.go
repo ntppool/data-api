@@ -284,7 +284,7 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		g, ctx := errgroup.WithContext(ctx)
 
 		stats := srv.db.Stats()
-		if stats.OpenConnections > 5 {
+		if stats.OpenConnections > 3 {
 			log.InfoContext(ctx, "health requests", "url", req.URL.String(), "stats", stats)
 		}
 
@@ -293,9 +293,11 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 			log.InfoContext(ctx, "db reset request", "err", err, "reset", reset)
 
 			if err == nil && reset {
+				// this feature was to debug some specific problem
 				log.InfoContext(ctx, "setting idle db conns to zero")
+				srv.db.SetConnMaxLifetime(30 * time.Second)
 				srv.db.SetMaxIdleConns(0)
-				srv.db.SetConnMaxLifetime(5 * time.Second)
+				srv.db.SetMaxIdleConns(4)
 			}
 		}
 

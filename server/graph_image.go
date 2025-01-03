@@ -107,6 +107,7 @@ func (srv *Server) fetchGraph(ctx context.Context, serverIP string) (string, []b
 
 	client := retryablehttp.NewClient()
 	client.Logger = log
+
 	client.HTTPClient.Transport = otelhttp.NewTransport(
 		client.HTTPClient.Transport,
 		otelhttp.WithClientTrace(func(ctx context.Context) *httptrace.ClientTrace {
