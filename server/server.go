@@ -53,7 +53,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse open: %w", err)
 	}
-	db, err := ntpdb.OpenDB(configFile)
+	db, err := ntpdb.OpenDB(ctx, configFile)
 	if err != nil {
 		return nil, fmt.Errorf("mysql open: %w", err)
 	}
@@ -304,7 +304,16 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		g.Go(func() error {
 			err := srv.ch.Scores.Ping(ctx)
 			if err != nil {
-				log.WarnContext(ctx, "ch ping", "err", err)
+				log.WarnContext(ctx, "ch scores ping", "err", err)
+				return err
+			}
+			return nil
+		})
+
+		g.Go(func() error {
+			err := srv.ch.Logs.Ping(ctx)
+			if err != nil {
+				log.WarnContext(ctx, "ch logs ping", "err", err)
 				return err
 			}
 			return nil

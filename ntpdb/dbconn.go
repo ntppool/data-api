@@ -1,6 +1,7 @@
 package ntpdb
 
 import (
+	"context"
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
+	"go.ntppool.org/common/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -22,7 +24,8 @@ type DBConfig struct {
 	Pass string `default:"" flag:"pass"`
 }
 
-func OpenDB(configFile string) (*sql.DB, error) {
+func OpenDB(ctx context.Context, configFile string) (*sql.DB, error) {
+	log := logger.FromContext(ctx)
 
 	dbconn := sql.OpenDB(Driver{CreateConnectorFunc: createConnector(configFile)})
 
@@ -32,7 +35,7 @@ func OpenDB(configFile string) (*sql.DB, error) {
 
 	err := dbconn.Ping()
 	if err != nil {
-		log.Printf("Could not connect to database: %s", err)
+		log.DebugContext(ctx, "could not connect to database: %s", "err", err)
 		return nil, err
 	}
 
@@ -41,7 +44,6 @@ func OpenDB(configFile string) (*sql.DB, error) {
 
 func createConnector(configFile string) CreateConnectorFunc {
 	return func() (driver.Connector, error) {
-
 		log.Printf("opening config file %s", configFile)
 
 		dbFile, err := os.Open(configFile)

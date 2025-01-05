@@ -38,7 +38,6 @@ func New(ctx context.Context, dbConfigPath string) (*ClickHouse, error) {
 }
 
 func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error) {
-
 	log := logger.FromContext(ctx)
 
 	log.InfoContext(ctx, "opening config", "file", configFile)
@@ -75,7 +74,8 @@ func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 	log := logger.Setup()
 
 	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr: []string{cfg.Host + ":9000"},
+		Addr:     []string{cfg.Host + ":9000"},
+		Protocol: clickhouse.Native,
 		Auth: clickhouse.Auth{
 			Database: cfg.Database,
 			Username: "default",
@@ -93,9 +93,9 @@ func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 			Method: clickhouse.CompressionLZ4,
 		},
 		DialTimeout:          time.Second * 5,
-		MaxOpenConns:         5,
-		MaxIdleConns:         5,
-		ConnMaxLifetime:      time.Duration(10) * time.Minute,
+		MaxOpenConns:         8,
+		MaxIdleConns:         3,
+		ConnMaxLifetime:      5 * time.Minute,
 		ConnOpenStrategy:     clickhouse.ConnOpenInOrder,
 		BlockBufferSize:      10,
 		MaxCompressionBuffer: 10240,
