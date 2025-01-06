@@ -40,7 +40,7 @@ func New(ctx context.Context, dbConfigPath string) (*ClickHouse, error) {
 func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error) {
 	log := logger.FromContext(ctx)
 
-	log.InfoContext(ctx, "opening config", "file", configFile)
+	log.DebugContext(ctx, "opening ch config", "file", configFile)
 
 	dbFile, err := os.Open(configFile)
 	if err != nil {

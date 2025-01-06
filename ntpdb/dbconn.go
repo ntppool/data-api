@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -27,7 +26,7 @@ type DBConfig struct {
 func OpenDB(ctx context.Context, configFile string) (*sql.DB, error) {
 	log := logger.FromContext(ctx)
 
-	dbconn := sql.OpenDB(Driver{CreateConnectorFunc: createConnector(configFile)})
+	dbconn := sql.OpenDB(Driver{CreateConnectorFunc: createConnector(ctx, configFile)})
 
 	dbconn.SetConnMaxLifetime(time.Minute * 3)
 	dbconn.SetMaxOpenConns(8)
@@ -42,9 +41,10 @@ func OpenDB(ctx context.Context, configFile string) (*sql.DB, error) {
 	return dbconn, nil
 }
 
-func createConnector(configFile string) CreateConnectorFunc {
+func createConnector(ctx context.Context, configFile string) CreateConnectorFunc {
+	log := logger.FromContext(ctx)
 	return func() (driver.Connector, error) {
-		log.Printf("opening config file %s", configFile)
+		log.DebugContext(ctx, "opening db config file", "filename", configFile)
 
 		dbFile, err := os.Open(configFile)
 		if err != nil {
