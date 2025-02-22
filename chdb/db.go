@@ -3,8 +3,10 @@ package chdb
 import (
 	"context"
 	"os"
+	"strings"
 	"time"
 
+	"dario.cat/mergo"
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"gopkg.in/yaml.v3"
 
@@ -20,8 +22,13 @@ type Config struct {
 }
 
 type DBConfig struct {
+	DSN string
+
 	Host     string
 	Database string
+
+	User     string
+	Password string
 }
 
 type ClickHouse struct {
@@ -73,22 +80,12 @@ func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error
 func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 	log := logger.Setup()
 
-	conn, err := clickhouse.Open(&clickhouse.Options{
-		Addr:     []string{cfg.Host + ":9000"},
+	options := &clickhouse.Options{
 		Protocol: clickhouse.Native,
-		Auth: clickhouse.Auth{
-			Database: cfg.Database,
-			Username: "default",
-			Password: "",
-		},
-		// Debug: true,
-		// Debugf: func(format string, v ...interface{}) {
-		// 	slog.Info("debug format", "format", format)
-		// 	fmt.Printf(format+"\n", v)
-		// },
 		Settings: clickhouse.Settings{
 			"max_execution_time": 60,
 		},
+
 		Compression: &clickhouse.Compression{
 			Method: clickhouse.CompressionLZ4,
 		},
@@ -107,7 +104,49 @@ func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 				{Name: "data-api", Version: version.Version()},
 			},
 		},
-	})
+		// Debug: true,
+		// Debugf: func(format string, v ...interface{}) {
+		// 	slog.Info("debug format", "format", format)
+		// 	fmt.Printf(format+"\n", v)
+		// },
+
+	}
+
+	if cfg.DSN != "" {
+		dsnOptions, err := clickhouse.ParseDSN(cfg.DSN)
+		if err != nil {
+			return nil, err
+		}
+		err = mergo.Merge(options, dsnOptions)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if cfg.Host != "" {
+		options.Addr = []string{cfg.Host}
+	}
+
+	if len(options.Addr) > 0 {
+		// todo: support literal ipv6; or just require port to be configured explicitly
+		if !strings.Contains(options.Addr[0], ":") {
+			options.Addr[0] += ":9000"
+		}
+	}
+
+	if cfg.Database != "" {
+		options.Auth.Database = cfg.Database
+	}
+
+	if cfg.User != "" {
+		options.Auth.Username = cfg.User
+	}
+
+	if cfg.Password != "" {
+		options.Auth.Password = cfg.Password
+	}
+
+	conn, err := clickhouse.Open(options)
 	if err != nil {
 		return nil, err
 	}
