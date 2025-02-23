@@ -197,7 +197,7 @@ func (d *ClickHouse) DNSQueries(ctx context.Context) ([]DNSQueryCounts, error) {
 	ctx, span := tracing.Tracer().Start(ctx, "DNSQueries")
 	defer span.End()
 
-	startUnix := time.Now().Add(-90 * time.Minute).Unix()
+	startUnix := time.Now().Add(2 * time.Hour * -1).Unix()
 	startUnix -= startUnix % (60 * 5)
 
 	log.InfoContext(ctx, "start time", "start", startUnix)

@@ -288,6 +288,9 @@ func (srv *Server) dnsQueryCounts(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
+	hdr := c.Response().Header()
+	hdr.Set("Cache-Control", "s-maxage=30,max-age=60")
+
 	return c.JSON(http.StatusOK, data)
 }
 
