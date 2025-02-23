@@ -24,9 +24,11 @@ type UserCountry []flatAPI
 func (s UserCountry) Len() int {
 	return len(s)
 }
+
 func (s UserCountry) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
+
 func (s UserCountry) Less(i, j int) bool {
 	return s[i].IPv4 > s[j].IPv4
 }
@@ -182,4 +184,56 @@ func (d *ClickHouse) UserCountryData(ctx context.Context) (*UserCountry, error) 
 	}
 
 	return nil, nil
+}
+
+type DNSQueryCounts struct {
+	T   uint32  `json:"t"`
+	Avg float64 `json:"avg"`
+	Max uint64  `json:"max"`
+}
+
+func (d *ClickHouse) DNSQueries(ctx context.Context) ([]DNSQueryCounts, error) {
+	log := logger.Setup()
+	ctx, span := tracing.Tracer().Start(ctx, "DNSQueries")
+	defer span.End()
+
+	startUnix := time.Now().Add(-90 * time.Minute).Unix()
+	startUnix -= startUnix % (60 * 5)
+
+	log.InfoContext(ctx, "start time", "start", startUnix)
+
+	rows, err := d.Logs.Query(clickhouse.Context(ctx, clickhouse.WithSpan(span.SpanContext())),
+		`
+	select toUnixTimestamp(toStartOfFiveMinute(t)) as t,
+  sum(q)/300 as avg, max(q) as max
+from (
+ select window as t, sumSimpleState(queries) as q
+ from geodns.by_origin_1s
+ where
+   window > FROM_UNIXTIME(?)
+   and Origin IN ('pool.ntp.org', 'g.ntpns.org')
+ group by t order by t
+)
+group by t order by t
+`, startUnix)
+	if err != nil {
+		log.ErrorContext(ctx, "query error", "err", err)
+		return nil, fmt.Errorf("database error")
+	}
+
+	var t uint32
+	var avg float64
+	var max uint64
+
+	r := []DNSQueryCounts{}
+
+	for rows.Next() {
+		if err := rows.Scan(&t, &avg, &max); err != nil {
+			return nil, err
+		}
+		log.InfoContext(ctx, "data", "t", t, "avg", avg, "max", max)
+		r = append(r, DNSQueryCounts{t, avg, max})
+	}
+
+	return r, nil
 }

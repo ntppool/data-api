@@ -207,6 +207,7 @@ func (srv *Server) Run() error {
 	e.GET("/api/usercc", srv.userCountryData)
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 	e.GET("/api/server/scores/:server/:mode", srv.history)
+	e.GET("/api/dns/counts", srv.dnsQueryCounts)
 
 	if len(ntpconf.WebHostname()) > 0 {
 		e.POST("/api/server/scores/:server/:mode", func(c echo.Context) error {
@@ -261,7 +262,7 @@ func (srv *Server) userCountryData(c echo.Context) error {
 		log.InfoContext(ctx, "didn't get zoneStats")
 	}
 
-	data, err := srv.ch.UserCountryData(c.Request().Context())
+	data, err := srv.ch.UserCountryData(ctx)
 	if err != nil {
 		log.ErrorContext(ctx, "UserCountryData", "err", err)
 		return c.String(http.StatusInternalServerError, err.Error())
@@ -274,6 +275,20 @@ func (srv *Server) userCountryData(c echo.Context) error {
 		UserCountry: data,
 		ZoneStats:   zoneStats,
 	})
+}
+
+func (srv *Server) dnsQueryCounts(c echo.Context) error {
+	log := logger.Setup()
+	ctx, span := tracing.Tracer().Start(c.Request().Context(), "dnsQueryCounts")
+	defer span.End()
+
+	data, err := srv.ch.DNSQueries(ctx)
+	if err != nil {
+		log.ErrorContext(ctx, "dnsQueryCounts", "err", err)
+		return c.String(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, data)
 }
 
 func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, req *http.Request) {
