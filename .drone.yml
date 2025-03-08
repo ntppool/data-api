@@ -21,7 +21,7 @@ steps:
         memory: 100MiB
 
   - name: test
-    image: golang:1.23
+    image: golang:1.24
     pull: always
     volumes:
       - name: go
@@ -33,7 +33,7 @@ steps:
       - go build ./...
 
   - name: goreleaser
-    image: golang:1.23
+    image: golang:1.24
     pull: always
     resources:
       requests:
@@ -83,6 +83,6 @@ volumes:
 
 ---
 kind: signature
-hmac: c3cf7118bd6e9a6310b792f9cb9a3a146416123528cf41d2e5ccb9c23786d02b
+hmac: 616f5b902e42082a427162929ba5ac45d9331a8ade25c923f185ebb71dd8aef4
 
 ...
