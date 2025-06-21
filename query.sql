@@ -60,7 +60,7 @@ where id in (sqlc.slice('MonitorIDs'));
 
 -- name: GetServerScores :many
 select
-    m.id, m.name, m.tls_name, m.location, m.type,
+    m.id, m.hostname, m.tls_name, m.location, m.type,
     ss.score_raw, ss.score_ts, ss.status
   from server_scores ss
     inner join monitors m

@@ -7,8 +7,8 @@ import (
 
 func (m *Monitor) DisplayName() string {
 	switch {
-	case len(m.Name) > 0:
-		return m.Name
+	// case len(m.Hostname) > 0:
+	// 	return m.Hostname
 	case m.TlsName.Valid && len(m.TlsName.String) > 0:
 		name := m.TlsName.String
 		if idx := strings.Index(name, "."); idx > 0 {

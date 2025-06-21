@@ -284,7 +284,7 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		score := math.Round(lsm.ScoreRaw*10) / 10 // round to one decimal
 
 		tempMon := ntpdb.Monitor{
-			Name:     lsm.Name,
+			Hostname: lsm.Hostname,
 			TlsName:  lsm.TlsName,
 			Location: lsm.Location,
 			ID:       lsm.ID,
