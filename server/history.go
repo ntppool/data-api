@@ -399,12 +399,12 @@ func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) 
 		// cache for longer if data hasn't updated for a while; or we didn't
 		// find any.
 		(time.Now().Add(-8 * time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts)) {
-		hdr.Set("Cache-Control", "s-maxage=3600,max-age=1800")
+		hdr.Set("Cache-Control", "s-maxage=260,max-age=360")
 	} else {
 		if len(history.LogScores) == 1 {
 			hdr.Set("Cache-Control", "s-maxage=60,max-age=35")
 		} else {
-			hdr.Set("Cache-Control", "s-maxage=240,max-age=120")
+			hdr.Set("Cache-Control", "s-maxage=90,max-age=120")
 		}
 	}
 }
