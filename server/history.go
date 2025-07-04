@@ -237,15 +237,17 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		Step      float64  `json:"step"`
 		Score     float64  `json:"score"`
 		MonitorID int      `json:"monitor_id"`
+		Rtt       *float64 `json:"rtt,omitempty"`
 	}
 
 	type MonitorEntry struct {
-		ID     uint32  `json:"id"`
-		Name   string  `json:"name"`
-		Type   string  `json:"type"`
-		Ts     string  `json:"ts"`
-		Score  float64 `json:"score"`
-		Status string  `json:"status"`
+		ID     uint32   `json:"id"`
+		Name   string   `json:"name"`
+		Type   string   `json:"type"`
+		Ts     string   `json:"ts"`
+		Score  float64  `json:"score"`
+		Status string   `json:"status"`
+		AvgRtt *float64 `json:"avg_rtt,omitempty"`
 	}
 	res := struct {
 		History  []ScoresEntry  `json:"history"`
@@ -280,11 +282,23 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 
 	// log.InfoContext(ctx, "got logScoreMonitors", "count", len(logScoreMonitors))
 
+	// Calculate average RTT per monitor
+	monitorRttSums := make(map[uint32]float64)
+	monitorRttCounts := make(map[uint32]int)
+
+	for _, ls := range history.LogScores {
+		if ls.MonitorID.Valid && ls.Rtt.Valid {
+			monitorID := uint32(ls.MonitorID.Int32)
+			monitorRttSums[monitorID] += float64(ls.Rtt.Int32) / 1000.0
+			monitorRttCounts[monitorID]++
+		}
+	}
+
 	for _, lsm := range logScoreMonitors {
 		score := math.Round(lsm.ScoreRaw*10) / 10 // round to one decimal
 
 		tempMon := ntpdb.Monitor{
-			Hostname: lsm.Hostname,
+			//			Hostname: lsm.Hostname,
 			TlsName:  lsm.TlsName,
 			Location: lsm.Location,
 			ID:       lsm.ID,
@@ -299,6 +313,13 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 			Score:  score,
 			Status: string(lsm.Status),
 		}
+
+		// Add average RTT if available
+		if count, exists := monitorRttCounts[lsm.ID]; exists && count > 0 {
+			avgRtt := monitorRttSums[lsm.ID] / float64(count)
+			me.AvgRtt = &avgRtt
+		}
+
 		res.Monitors = append(res.Monitors, me)
 	}
 
@@ -314,6 +335,10 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		if ls.Offset.Valid {
 			offset := ls.Offset.Float64
 			res.History[i].Offset = &offset
+		}
+		if ls.Rtt.Valid {
+			rtt := float64(ls.Rtt.Int32) / 1000.0
+			res.History[i].Rtt = &rtt
 		}
 	}
 
@@ -337,7 +362,7 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 		return s
 	}
 
-	err := w.Write([]string{"ts_epoch", "ts", "offset", "step", "score", "monitor_id", "monitor_name", "leap", "error"})
+	err := w.Write([]string{"ts_epoch", "ts", "offset", "step", "score", "monitor_id", "monitor_name", "rtt", "leap", "error"})
 	if err != nil {
 		log.ErrorContext(ctx, "could not write csv header", "err", err)
 		return err
@@ -361,6 +386,11 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 			leap = fmt.Sprintf("%d", l.Attributes.Leap)
 		}
 
+		var rtt string
+		if l.Rtt.Valid {
+			rtt = ff(float64(l.Rtt.Int32) / 1000.0)
+		}
+
 		err := w.Write([]string{
 			strconv.Itoa(int(l.Ts.Unix())),
 			// l.Ts.Format(time.RFC3339),
@@ -370,6 +400,7 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 			score,
 			fmt.Sprintf("%d", l.MonitorID.Int32),
 			monName,
+			rtt,
 			leap,
 			l.Attributes.Error,
 		})
