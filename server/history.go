@@ -22,6 +22,23 @@ import (
 	"go.ntppool.org/data-api/ntpdb"
 )
 
+// sanitizeForCSV removes or replaces problematic characters for CSV output
+func sanitizeForCSV(s string) string {
+	// Replace NULL bytes and other control characters with a placeholder
+	var result strings.Builder
+	for _, r := range s {
+		switch {
+		case r == 0: // NULL byte
+			result.WriteString("<NULL>")
+		case r < 32 && r != '\t' && r != '\n' && r != '\r': // Other control chars except tab/newline/carriage return
+			result.WriteString(fmt.Sprintf("<0x%02X>", r))
+		default:
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
+}
+
 type historyMode uint8
 
 const (
@@ -402,7 +419,7 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 			monName,
 			rtt,
 			leap,
-			l.Attributes.Error,
+			sanitizeForCSV(l.Attributes.Error),
 		})
 		if err != nil {
 			log.Warn("csv encoding error", "ls_id", l.ID, "err", err)
