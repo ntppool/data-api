@@ -179,7 +179,7 @@ func (srv *Server) Run() error {
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{
-			"http://localhost", "http://localhost:5173", "http://localhost:8080",
+			"http://localhost", "http://localhost:5173", "http://localhost:5174", "http://localhost:8080",
 			"https://www.ntppool.org", "https://*.ntppool.org",
 			"https://web.beta.grundclock.com", "https://manage.beta.grundclock.com",
 			"https:/*.askdev.grundclock.com",
@@ -208,6 +208,7 @@ func (srv *Server) Run() error {
 	e.GET("/api/server/dns/answers/:server", srv.dnsAnswers)
 	e.GET("/api/server/scores/:server/:mode", srv.history)
 	e.GET("/api/dns/counts", srv.dnsQueryCounts)
+	e.GET("/api/v2/test/grafana-table", srv.testGrafanaTable)
 
 	if len(ntpconf.WebHostname()) > 0 {
 		e.POST("/api/server/scores/:server/:mode", func(c echo.Context) error {
