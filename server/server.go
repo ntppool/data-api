@@ -209,6 +209,7 @@ func (srv *Server) Run() error {
 	e.GET("/api/server/scores/:server/:mode", srv.history)
 	e.GET("/api/dns/counts", srv.dnsQueryCounts)
 	e.GET("/api/v2/test/grafana-table", srv.testGrafanaTable)
+	e.GET("/api/v2/server/scores/:server/:mode", srv.scoresTimeRange)
 
 	if len(ntpconf.WebHostname()) > 0 {
 		e.POST("/api/server/scores/:server/:mode", func(c echo.Context) error {

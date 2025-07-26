@@ -456,3 +456,4 @@ func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) 
 		}
 	}
 }
+

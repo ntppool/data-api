@@ -1,20 +1,20 @@
 # DETAILED IMPLEMENTATION PLAN: Grafana Time Range API with Future Downsampling Support
 
 ## Overview
-Implement a new Grafana-compatible API endpoint `/api/v2/server/scores/{server}.{mode}` that returns time series data in Grafana format with time range support and future downsampling capabilities.
+Implement a new Grafana-compatible API endpoint `/api/v2/server/scores/{server}/{mode}` that returns time series data in Grafana format with time range support and future downsampling capabilities.
 
 ## API Specification
 
 ### Endpoint
-- **URL**: `/api/v2/server/scores/{server}.{mode}`
+- **URL**: `/api/v2/server/scores/{server}/{mode}`
 - **Method**: GET
 - **Path Parameters**:
   - `server`: Server IP address or ID (same validation as existing API)
   - `mode`: Only `json` supported initially
 
 ### Query Parameters (following Grafana conventions)
-- `from`: Unix timestamp in milliseconds (required)
-- `to`: Unix timestamp in milliseconds (required) 
+- `from`: Unix timestamp in seconds (required)
+- `to`: Unix timestamp in seconds (required) 
 - `maxDataPoints`: Integer, default 50000, max 50000 (for future downsampling)
 - `monitor`: Monitor ID, name prefix, or "*" for all (optional, same as existing)
 - `interval`: Future downsampling interval like "1m", "5m", "1h" (optional, not implemented initially)
@@ -52,8 +52,10 @@ Grafana table format JSON array (more efficient than separate series):
 ### 1. Server Routing (`server/server.go`)
 Add new route after existing scores routes:
 ```go
-e.GET("/api/v2/server/scores/:server.:mode", srv.scoresTimeRange)
+e.GET("/api/v2/server/scores/:server/:mode", srv.scoresTimeRange)
 ```
+
+**Note**: Initially attempted `:server.:mode` pattern, but Echo router cannot properly parse IP addresses with dots using this pattern. Changed to `:server/:mode` to match existing API pattern and ensure compatibility with IP addresses like `23.155.40.38`.
 
 ## Key Implementation Clarifications
 
@@ -73,7 +75,7 @@ e.GET("/api/v2/server/scores/:server.:mode", srv.scoresTimeRange)
 - **Minimum range**: 1 second
 - **Maximum range**: 90 days
 
-### 2. New Handler Function (`server/history.go`)
+### 2. New Handler Function (`server/grafana.go`)
 
 #### Function Signature
 ```go
@@ -98,7 +100,7 @@ func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context) (ti
         return timeRangeParams{}, err
     }
     
-    // Parse and validate from/to millisecond timestamps
+    // Parse and validate from/to second timestamps
     // Validate time range (max 90 days, min 1 second)
     // Parse maxDataPoints (default 50000, max 50000)
     // Return extended parameters
@@ -159,7 +161,7 @@ ORDER BY ts ASC
 LIMIT ?
 ```
 
-### 4. Data Transformation Logic (`server/history.go`)
+### 4. Data Transformation Logic (`server/grafana.go`)
 
 #### Core Transformation Function
 ```go
@@ -260,7 +262,7 @@ timestampMs := logScore.Ts.Unix() * 1000
 ```markdown
 ### 7. Server Scores Time Range (v2)
 
-**GET** `/api/v2/server/scores/{server}.{mode}`
+**GET** `/api/v2/server/scores/{server}/{mode}`
 
 Grafana-compatible time series endpoint for NTP server scoring data.
 
@@ -269,8 +271,8 @@ Grafana-compatible time series endpoint for NTP server scoring data.
 - `mode`: Response format (`json` only)
 
 #### Query Parameters  
-- `from`: Start time as Unix timestamp in milliseconds (required)
-- `to`: End time as Unix timestamp in milliseconds (required)
+- `from`: Start time as Unix timestamp in seconds (required)
+- `to`: End time as Unix timestamp in seconds (required)
 - `maxDataPoints`: Maximum data points to return (default: 50000, max: 50000)
 - `monitor`: Monitor filter (ID, name prefix, or "*" for all)
 
@@ -319,14 +321,51 @@ Grafana table format array with one series per monitor containing all metrics as
 
 **Recommended Grafana Data Source**: JSON API plugin (`marcusolsson-json-datasource`) - ideal for REST APIs returning table format JSON
 
-### Phase 1: Core Implementation
-- [ ] Add route in server.go
-- [ ] Implement parseTimeRangeParams function
-- [ ] Add LogscoresTimeRange method to ClickHouse
-- [ ] Implement transformToGrafanaTableFormat function
-- [ ] Add scoresTimeRange handler
-- [ ] Error handling and validation (reuse existing Echo patterns)
-- [ ] Cache control headers (reuse setHistoryCacheControl)
+### Phase 1: Core Implementation ✅ **COMPLETED**
+- [x] Add route in server.go (fixed routing pattern from `:server.:mode` to `:server/:mode`)
+- [x] Implement parseTimeRangeParams function for parameter validation
+- [x] Add LogscoresTimeRange method to ClickHouse with time range filtering
+- [x] Implement transformToGrafanaTableFormat function with monitor grouping
+- [x] Add scoresTimeRange handler with full error handling
+- [x] Error handling and validation (reuse existing Echo patterns)
+- [x] Cache control headers (reuse setHistoryCacheControl)
+
+#### Phase 1 Implementation Details
+**Key Components Built:**
+- **Route Pattern**: `/api/v2/server/scores/:server/:mode` (matches existing API consistency)
+- **Parameter Validation**: Full validation of `from`/`to` timestamps, `maxDataPoints`, time ranges
+- **ClickHouse Integration**: `LogscoresTimeRange()` with time-based WHERE clauses and ASC ordering
+- **Data Transformation**: Grafana table format with monitor grouping and null value handling
+- **Complete Handler**: `scoresTimeRange()` with server validation, error handling, caching, and CORS
+
+**Routing Fix**: Changed from `:server.:mode` to `:server/:mode` to resolve Echo router issue with IP addresses containing dots (e.g., `23.155.40.38`).
+
+**Files Created/Modified in Phase 1:**
+- `server/grafana.go`: Complete implementation with all structures and functions
+  - `timeRangeParams` struct and `parseTimeRangeParams()` function
+  - `transformToGrafanaTableFormat()` function with monitor grouping
+  - `scoresTimeRange()` handler with full error handling
+  - `sanitizeMonitorName()` utility function
+- `server/server.go`: Added route `e.GET("/api/v2/server/scores/:server/:mode", srv.scoresTimeRange)`
+- `chdb/logscores.go`: Added `LogscoresTimeRange()` method for time-based queries
+
+**Production Testing Results** (July 25, 2025):
+- ✅ **Real Data Verification**: Successfully tested with server `102.64.112.164` over 12-hour time range
+- ✅ **Multiple Monitor Support**: Returns data for multiple monitors (`defra1-210hw9t`, `recentmedian`)
+- ✅ **Data Quality Validation**: 
+  - RTT conversion (microseconds → milliseconds): ✅ Working
+  - Timestamp conversion (seconds → milliseconds): ✅ Working  
+  - Null value handling: ✅ Working (recentmedian has null RTT/offset as expected)
+  - Monitor grouping: ✅ Working (one series per monitor)
+- ✅ **API Parameter Changes**: Successfully changed from milliseconds to seconds for user-friendliness
+- ✅ **Volume Testing**: Handles 100+ data points per monitor efficiently
+- ✅ **Error Handling**: All validation working (400 for invalid params, 404 for missing servers)
+- ✅ **Performance**: Sub-second response times for 12-hour ranges
+
+**Sample Working Request:**
+```bash
+curl 'http://localhost:8030/api/v2/server/scores/102.64.112.164/json?from=1753457764&to=1753500964&monitor=*'
+```
 
 ### Phase 2: Testing & Polish
 - [ ] Unit tests for all functions
