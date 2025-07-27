@@ -6,11 +6,10 @@ package ntpdb
 
 import (
 	"context"
-	"database/sql"
 )
 
 type Querier interface {
-	GetMonitorByName(ctx context.Context, tlsName sql.NullString) (Monitor, error)
+	GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonitorByNameAndIPVersionParams) (Monitor, error)
 	GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]Monitor, error)
 	GetServerByID(ctx context.Context, id uint32) (Server, error)
 	GetServerByIP(ctx context.Context, ip string) (Server, error)

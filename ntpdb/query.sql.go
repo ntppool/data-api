@@ -12,16 +12,24 @@ import (
 	"time"
 )
 
-const getMonitorByName = `-- name: GetMonitorByName :one
+const getMonitorByNameAndIPVersion = `-- name: GetMonitorByNameAndIPVersion :one
 select id, id_token, type, user_id, account_id, hostname, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on, deleted_on, is_current from monitors
 where
-  tls_name like ?
+  tls_name like ? AND
+  ip_version = ? AND
+  is_current = 1 AND
+  status != 'deleted'
   order by id
   limit 1
 `
 
-func (q *Queries) GetMonitorByName(ctx context.Context, tlsName sql.NullString) (Monitor, error) {
-	row := q.db.QueryRowContext(ctx, getMonitorByName, tlsName)
+type GetMonitorByNameAndIPVersionParams struct {
+	TlsName   sql.NullString        `db:"tls_name" json:"tls_name"`
+	IpVersion NullMonitorsIpVersion `db:"ip_version" json:"ip_version"`
+}
+
+func (q *Queries) GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonitorByNameAndIPVersionParams) (Monitor, error) {
+	row := q.db.QueryRowContext(ctx, getMonitorByNameAndIPVersion, arg.TlsName, arg.IpVersion)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,

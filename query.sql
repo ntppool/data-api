@@ -47,10 +47,13 @@ select * from servers
 where
   ip = sqlc.arg(ip);
 
--- name: GetMonitorByName :one
+-- name: GetMonitorByNameAndIPVersion :one
 select * from monitors
 where
-  tls_name like sqlc.arg('tls_name')
+  tls_name like sqlc.arg('tls_name') AND
+  ip_version = sqlc.arg('ip_version') AND
+  is_current = 1 AND
+  status != 'deleted'
   order by id
   limit 1;
 

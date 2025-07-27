@@ -42,59 +42,59 @@ type timeRangeParams struct {
 }
 
 // parseTimeRangeParams parses and validates time range parameters
-func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context) (timeRangeParams, error) {
+func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context, server ntpdb.Server) (timeRangeParams, error) {
 	log := logger.FromContext(ctx)
-	
+
 	// Start with existing parameter parsing logic
-	baseParams, err := srv.getHistoryParameters(ctx, c)
+	baseParams, err := srv.getHistoryParameters(ctx, c, server)
 	if err != nil {
 		return timeRangeParams{}, err
 	}
-	
+
 	trParams := timeRangeParams{
 		historyParameters: baseParams,
 		maxDataPoints:     50000, // default
 	}
-	
+
 	// Parse from timestamp (required)
 	fromParam := c.QueryParam("from")
 	if fromParam == "" {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "from parameter is required")
 	}
-	
+
 	fromSec, err := strconv.ParseInt(fromParam, 10, 64)
 	if err != nil {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "invalid from timestamp format")
 	}
 	trParams.from = time.Unix(fromSec, 0)
-	
+
 	// Parse to timestamp (required)
 	toParam := c.QueryParam("to")
 	if toParam == "" {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "to parameter is required")
 	}
-	
+
 	toSec, err := strconv.ParseInt(toParam, 10, 64)
 	if err != nil {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "invalid to timestamp format")
 	}
 	trParams.to = time.Unix(toSec, 0)
-	
+
 	// Validate time range
 	if trParams.from.Equal(trParams.to) || trParams.from.After(trParams.to) {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "from must be before to")
 	}
-	
+
 	// Check minimum range (1 second)
 	if trParams.to.Sub(trParams.from) < time.Second {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "time range must be at least 1 second")
 	}
-	
+
 	// Check maximum range (90 days)
 	if trParams.to.Sub(trParams.from) > 90*24*time.Hour {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "time range cannot exceed 90 days")
 	}
-	
+
 	// Parse maxDataPoints (optional)
 	if maxDataPointsParam := c.QueryParam("maxDataPoints"); maxDataPointsParam != "" {
 		maxDP, err := strconv.Atoi(maxDataPointsParam)
@@ -108,10 +108,10 @@ func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context) (ti
 			trParams.maxDataPoints = maxDP
 		}
 	}
-	
+
 	// Parse interval (optional, for future downsampling)
 	trParams.interval = c.QueryParam("interval")
-	
+
 	log.DebugContext(ctx, "parsed time range params",
 		"from", trParams.from,
 		"to", trParams.to,
@@ -119,7 +119,7 @@ func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context) (ti
 		"interval", trParams.interval,
 		"monitor", trParams.monitorID,
 	)
-	
+
 	return trParams, nil
 }
 
@@ -137,7 +137,7 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 	// Group data by monitor_id (one series per monitor)
 	monitorData := make(map[int][]ntpdb.LogScore)
 	monitorInfo := make(map[int]ntpdb.Monitor)
-	
+
 	// Group log scores by monitor ID
 	skippedInvalidMonitors := 0
 	for _, ls := range history.LogScores {
@@ -148,7 +148,7 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 		monitorID := int(ls.MonitorID.Int32)
 		monitorData[monitorID] = append(monitorData[monitorID], ls)
 	}
-	
+
 	// Debug logging for transformation
 	logger.Setup().Info("transformation grouping debug",
 		"total_log_scores", len(history.LogScores),
@@ -168,30 +168,30 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 			return counts
 		}(),
 	)
-	
+
 	// Index monitors by ID for quick lookup
 	for _, monitor := range monitors {
 		monitorInfo[int(monitor.ID)] = monitor
 	}
-	
+
 	var response GrafanaTimeSeriesResponse
-	
+
 	// Create one table series per monitor
-	logger.Setup().Info("creating grafana series", 
+	logger.Setup().Info("creating grafana series",
 		"monitor_data_entries", len(monitorData),
 	)
-	
+
 	for monitorID, logScores := range monitorData {
 		if len(logScores) == 0 {
 			logger.Setup().Info("skipping monitor with no data", "monitor_id", monitorID)
 			continue
 		}
-		
-		logger.Setup().Info("processing monitor series", 
+
+		logger.Setup().Info("processing monitor series",
 			"monitor_id", monitorID,
 			"log_scores_count", len(logScores),
 		)
-		
+
 		// Get monitor name from history.Monitors map or from monitor info
 		monitorName := "unknown"
 		if name, exists := history.Monitors[monitorID]; exists && name != "" {
@@ -199,20 +199,20 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 		} else if monitor, exists := monitorInfo[monitorID]; exists {
 			monitorName = monitor.DisplayName()
 		}
-		
+
 		// Build target name and tags
 		sanitizedName := sanitizeMonitorName(monitorName)
 		target := "monitor{name=" + sanitizedName + "}"
-		
+
 		tags := map[string]string{
 			"monitor_id":   strconv.Itoa(monitorID),
 			"monitor_name": monitorName,
 			"type":         "monitor",
 		}
-		
+
 		// Add status (we'll use active as default since we have data for this monitor)
 		tags["status"] = "active"
-		
+
 		// Define table columns
 		columns := []ColumnDef{
 			{Text: "time", Type: "time"},
@@ -220,19 +220,19 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 			{Text: "rtt", Type: "number", Unit: "ms"},
 			{Text: "offset", Type: "number", Unit: "s"},
 		}
-		
+
 		// Build values array
 		var values [][]interface{}
 		for _, ls := range logScores {
 			// Convert timestamp to milliseconds
 			timestampMs := ls.Ts.Unix() * 1000
-			
+
 			// Create row: [time, score, rtt, offset]
 			row := []interface{}{
 				timestampMs,
 				ls.Score,
 			}
-			
+
 			// Add RTT (convert from microseconds to milliseconds, handle null)
 			if ls.Rtt.Valid {
 				rttMs := float64(ls.Rtt.Int32) / 1000.0
@@ -240,17 +240,17 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 			} else {
 				row = append(row, nil)
 			}
-			
+
 			// Add offset (handle null)
 			if ls.Offset.Valid {
 				row = append(row, ls.Offset.Float64)
 			} else {
 				row = append(row, nil)
 			}
-			
+
 			values = append(values, row)
 		}
-		
+
 		// Create table series
 		series := GrafanaTableSeries{
 			Target:  target,
@@ -258,21 +258,21 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 			Columns: columns,
 			Values:  values,
 		}
-		
+
 		response = append(response, series)
-		
-		logger.Setup().Info("created series for monitor", 
+
+		logger.Setup().Info("created series for monitor",
 			"monitor_id", monitorID,
 			"target", series.Target,
 			"values_count", len(series.Values),
 		)
 	}
-	
-	logger.Setup().Info("transformation complete", 
+
+	logger.Setup().Info("transformation complete",
 		"final_response_count", len(response),
 		"response_is_nil", response == nil,
 	)
-	
+
 	return response
 }
 
@@ -291,18 +291,7 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "invalid mode - only json supported")
 	}
 
-	// Parse and validate time range parameters
-	params, err := srv.parseTimeRangeParams(ctx, c)
-	if err != nil {
-		if he, ok := err.(*echo.HTTPError); ok {
-			return he
-		}
-		log.ErrorContext(ctx, "parse time range parameters", "err", err)
-		span.RecordError(err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
-	}
-
-	// Find and validate server
+	// Find and validate server first
 	server, err := srv.FindServer(ctx, c.Param("server"))
 	if err != nil {
 		log.ErrorContext(ctx, "find server", "err", err)
@@ -321,6 +310,17 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "server not found")
 	}
 
+	// Parse and validate time range parameters
+	params, err := srv.parseTimeRangeParams(ctx, c, server)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok {
+			return he
+		}
+		log.ErrorContext(ctx, "parse time range parameters", "err", err)
+		span.RecordError(err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
+	}
+
 	// Query ClickHouse for time range data
 	log.InfoContext(ctx, "executing clickhouse time range query",
 		"server_id", server.ID,
@@ -331,10 +331,10 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		"max_data_points", params.maxDataPoints,
 		"time_range_duration", params.to.Sub(params.from).String(),
 	)
-	
+
 	logScores, err := srv.ch.LogscoresTimeRange(ctx, int(server.ID), params.monitorID, params.from, params.to, params.maxDataPoints)
 	if err != nil {
-		log.ErrorContext(ctx, "clickhouse time range query", "err", err, 
+		log.ErrorContext(ctx, "clickhouse time range query", "err", err,
 			"server_id", server.ID,
 			"monitor_id", params.monitorID,
 			"from", params.from,
@@ -343,14 +343,16 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		span.RecordError(err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
-	
+
 	log.InfoContext(ctx, "clickhouse query results",
 		"server_id", server.ID,
 		"rows_returned", len(logScores),
 		"first_few_ids", func() []uint64 {
 			ids := make([]uint64, 0, 3)
 			for i, ls := range logScores {
-				if i >= 3 { break }
+				if i >= 3 {
+					break
+				}
 				ids = append(ids, ls.ID)
 			}
 			return ids
@@ -374,7 +376,7 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 			}
 		}
 	}
-	
+
 	log.InfoContext(ctx, "monitor processing",
 		"unique_monitor_ids", monitorIDs,
 		"monitor_count", len(monitorIDs),
@@ -400,7 +402,7 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 					ID:       lsm.ID,
 				}
 				monitors = append(monitors, tempMon)
-				
+
 				// Update monitor name in history
 				history.Monitors[int(lsm.ID)] = tempMon.DisplayName()
 			}
@@ -413,9 +415,9 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		"monitors_count", len(monitors),
 		"history_monitors", history.Monitors,
 	)
-	
+
 	grafanaResponse := transformToGrafanaTableFormat(history, monitors)
-	
+
 	log.InfoContext(ctx, "grafana transformation complete",
 		"response_series_count", len(grafanaResponse),
 		"response_preview", func() interface{} {
@@ -424,14 +426,18 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 			}
 			first := grafanaResponse[0]
 			return map[string]interface{}{
-				"target": first.Target,
-				"tags": first.Tags,
+				"target":        first.Target,
+				"tags":          first.Tags,
 				"columns_count": len(first.Columns),
-				"values_count": len(first.Values),
+				"values_count":  len(first.Values),
 				"first_few_values": func() [][]interface{} {
-					if len(first.Values) == 0 { return [][]interface{}{} }
+					if len(first.Values) == 0 {
+						return [][]interface{}{}
+					}
 					count := 2
-					if len(first.Values) < count { count = len(first.Values) }
+					if len(first.Values) < count {
+						count = len(first.Values)
+					}
 					return first.Values[:count]
 				}(),
 			}
@@ -445,7 +451,7 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
 	c.Response().Header().Set("Content-Type", "application/json")
 
-	log.InfoContext(ctx, "time range response final", 
+	log.InfoContext(ctx, "time range response final",
 		"server_id", server.ID,
 		"server_ip", server.Ip,
 		"monitor_id", params.monitorID,
@@ -466,7 +472,7 @@ func (srv *Server) testGrafanaTable(c echo.Context) error {
 	ctx, span := tracing.Tracer().Start(c.Request().Context(), "testGrafanaTable")
 	defer span.End()
 
-	log.InfoContext(ctx, "serving test Grafana table format", 
+	log.InfoContext(ctx, "serving test Grafana table format",
 		"remote_ip", c.RealIP(),
 		"user_agent", c.Request().UserAgent(),
 	)
@@ -520,11 +526,11 @@ func (srv *Server) testGrafanaTable(c echo.Context) error {
 	// Add CORS header for browser testing
 	c.Response().Header().Set("Access-Control-Allow-Origin", "*")
 	c.Response().Header().Set("Content-Type", "application/json")
-	
+
 	// Set cache control similar to other endpoints
 	c.Response().Header().Set("Cache-Control", "public,max-age=60")
 
-	log.InfoContext(ctx, "test Grafana table response sent", 
+	log.InfoContext(ctx, "test Grafana table response sent",
 		"series_count", len(sampleData),
 		"response_size_approx", "~1KB",
 	)

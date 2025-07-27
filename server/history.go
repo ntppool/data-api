@@ -69,7 +69,7 @@ type historyParameters struct {
 	fullHistory bool
 }
 
-func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (historyParameters, error) {
+func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, server ntpdb.Server) (historyParameters, error) {
 	log := logger.FromContext(ctx)
 
 	p := historyParameters{}
@@ -94,9 +94,18 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 	switch monitorParam {
 	case "":
 		name := "recentmedian.scores.ntp.dev"
-		monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: name})
+		var ipVersion ntpdb.NullMonitorsIpVersion
+		if server.IpVersion == ntpdb.ServersIpVersionV4 {
+			ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV4, Valid: true}
+		} else {
+			ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV6, Valid: true}
+		}
+		monitor, err := q.GetMonitorByNameAndIPVersion(ctx, ntpdb.GetMonitorByNameAndIPVersionParams{
+			TlsName:   sql.NullString{Valid: true, String: name},
+			IpVersion: ipVersion,
+		})
 		if err != nil {
-			log.Warn("could not find monitor", "name", name, "err", err)
+			log.Warn("could not find monitor", "name", name, "ip_version", server.IpVersion, "err", err)
 		}
 		monitorID = monitor.ID
 	case "*":
@@ -113,12 +122,21 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 			}
 
 			monitorParam = monitorParam + ".%"
-			monitor, err := q.GetMonitorByName(ctx, sql.NullString{Valid: true, String: monitorParam})
+			var ipVersion ntpdb.NullMonitorsIpVersion
+			if server.IpVersion == ntpdb.ServersIpVersionV4 {
+				ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV4, Valid: true}
+			} else {
+				ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV6, Valid: true}
+			}
+			monitor, err := q.GetMonitorByNameAndIPVersion(ctx, ntpdb.GetMonitorByNameAndIPVersionParams{
+				TlsName:   sql.NullString{Valid: true, String: monitorParam},
+				IpVersion: ipVersion,
+			})
 			if err != nil {
 				if err == sql.ErrNoRows {
 					return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found").WithInternal(err)
 				}
-				log.WarnContext(ctx, "could not find monitor", "name", monitorParam, "err", err)
+				log.WarnContext(ctx, "could not find monitor", "name", monitorParam, "ip_version", server.IpVersion, "err", err)
 				return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found (sql)")
 			}
 			monitorID = monitor.ID
@@ -127,7 +145,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context) (hi
 	}
 
 	p.monitorID = int(monitorID)
-	log.DebugContext(ctx, "monitor param", "monitor", monitorID)
+	log.DebugContext(ctx, "monitor param", "monitor", monitorID, "ip_version", server.IpVersion)
 
 	since, _ := strconv.ParseInt(c.QueryParam("since"), 10, 64) // defaults to 0 so don't care if it parses
 	if since > 0 {
@@ -171,16 +189,6 @@ func (srv *Server) history(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, "invalid mode")
 	}
 
-	p, err := srv.getHistoryParameters(ctx, c)
-	if err != nil {
-		if he, ok := err.(*echo.HTTPError); ok {
-			return he
-		}
-		log.ErrorContext(ctx, "get history parameters", "err", err)
-		span.RecordError(err)
-		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
-	}
-
 	server, err := srv.FindServer(ctx, c.Param("server"))
 	if err != nil {
 		log.ErrorContext(ctx, "find server", "err", err)
@@ -197,6 +205,16 @@ func (srv *Server) history(c echo.Context) error {
 	if server.ID == 0 {
 		span.AddEvent("server not found")
 		return echo.NewHTTPError(http.StatusNotFound, "server not found")
+	}
+
+	p, err := srv.getHistoryParameters(ctx, c, server)
+	if err != nil {
+		if he, ok := err.(*echo.HTTPError); ok {
+			return he
+		}
+		log.ErrorContext(ctx, "get history parameters", "err", err)
+		span.RecordError(err)
+		return echo.NewHTTPError(http.StatusInternalServerError, "internal error")
 	}
 
 	p.server = server
@@ -456,4 +474,3 @@ func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) 
 		}
 	}
 }
-

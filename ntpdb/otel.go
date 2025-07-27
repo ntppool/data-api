@@ -8,7 +8,6 @@ package ntpdb
 
 import (
 	"context"
-	"database/sql"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -82,14 +81,14 @@ func (_d QuerierTxWithTracing) Commit(ctx context.Context) (err error) {
 	return _d.QuerierTx.Commit(ctx)
 }
 
-// GetMonitorByName implements QuerierTx
-func (_d QuerierTxWithTracing) GetMonitorByName(ctx context.Context, tlsName sql.NullString) (m1 Monitor, err error) {
-	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetMonitorByName")
+// GetMonitorByNameAndIPVersion implements QuerierTx
+func (_d QuerierTxWithTracing) GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonitorByNameAndIPVersionParams) (m1 Monitor, err error) {
+	ctx, _span := otel.Tracer(_d._instance).Start(ctx, "QuerierTx.GetMonitorByNameAndIPVersion")
 	defer func() {
 		if _d._spanDecorator != nil {
 			_d._spanDecorator(_span, map[string]interface{}{
-				"ctx":     ctx,
-				"tlsName": tlsName}, map[string]interface{}{
+				"ctx": ctx,
+				"arg": arg}, map[string]interface{}{
 				"m1":  m1,
 				"err": err})
 		} else if err != nil {
@@ -103,7 +102,7 @@ func (_d QuerierTxWithTracing) GetMonitorByName(ctx context.Context, tlsName sql
 
 		_span.End()
 	}()
-	return _d.QuerierTx.GetMonitorByName(ctx, tlsName)
+	return _d.QuerierTx.GetMonitorByNameAndIPVersion(ctx, arg)
 }
 
 // GetMonitorsByID implements QuerierTx
