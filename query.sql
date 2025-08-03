@@ -52,8 +52,7 @@ select * from monitors
 where
   tls_name like sqlc.arg('tls_name') AND
   (ip_version = sqlc.arg('ip_version') OR (type = 'score' AND ip_version IS NULL)) AND
-  is_current = 1 AND
-  status != 'deleted'
+  is_current = 1
   order by id
   limit 1;
 

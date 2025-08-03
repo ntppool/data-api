@@ -17,8 +17,7 @@ select id, id_token, type, user_id, account_id, hostname, location, ip, ip_versi
 where
   tls_name like ? AND
   (ip_version = ? OR (type = 'score' AND ip_version IS NULL)) AND
-  is_current = 1 AND
-  status != 'deleted'
+  is_current = 1
   order by id
   limit 1
 `
