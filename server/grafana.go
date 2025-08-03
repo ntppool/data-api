@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +44,55 @@ type timeRangeParams struct {
 }
 
 // parseTimeRangeParams parses and validates time range parameters
+// parseRelativeTime parses relative time expressions like "-3d", "-2h", "-30m"
+// Returns the absolute time relative to the provided base time (usually time.Now())
+func parseRelativeTime(relativeTimeStr string, baseTime time.Time) (time.Time, error) {
+	if relativeTimeStr == "" {
+		return time.Time{}, fmt.Errorf("empty time string")
+	}
+
+	// Check if it's a regular Unix timestamp first
+	if unixTime, err := strconv.ParseInt(relativeTimeStr, 10, 64); err == nil {
+		return time.Unix(unixTime, 0), nil
+	}
+
+	// Parse relative time format like "-3d", "-2h", "-30m", "-5s"
+	re := regexp.MustCompile(`^(-?)(\d+)([dhms])$`)
+	matches := re.FindStringSubmatch(relativeTimeStr)
+	if len(matches) != 4 {
+		return time.Time{}, fmt.Errorf("invalid time format, expected Unix timestamp or relative format like '-3d', '-2h', '-30m', '-5s'")
+	}
+
+	sign := matches[1]
+	valueStr := matches[2]
+	unit := matches[3]
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("invalid numeric value: %s", valueStr)
+	}
+
+	var duration time.Duration
+	switch unit {
+	case "s":
+		duration = time.Duration(value) * time.Second
+	case "m":
+		duration = time.Duration(value) * time.Minute
+	case "h":
+		duration = time.Duration(value) * time.Hour
+	case "d":
+		duration = time.Duration(value) * 24 * time.Hour
+	default:
+		return time.Time{}, fmt.Errorf("invalid time unit: %s", unit)
+	}
+
+	// Apply sign (negative means go back in time)
+	if sign == "-" {
+		return baseTime.Add(-duration), nil
+	}
+	return baseTime.Add(duration), nil
+}
+
 func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context, server ntpdb.Server) (timeRangeParams, error) {
 	log := logger.FromContext(ctx)
 
@@ -56,29 +107,28 @@ func (srv *Server) parseTimeRangeParams(ctx context.Context, c echo.Context, ser
 		maxDataPoints:     50000, // default
 	}
 
-	// Parse from timestamp (required)
+	// Parse from timestamp (required) - supports Unix timestamps and relative time like "-3d"
 	fromParam := c.QueryParam("from")
 	if fromParam == "" {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "from parameter is required")
 	}
 
-	fromSec, err := strconv.ParseInt(fromParam, 10, 64)
+	now := time.Now()
+	trParams.from, err = parseRelativeTime(fromParam, now)
 	if err != nil {
-		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "invalid from timestamp format")
+		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid from parameter: %v", err))
 	}
-	trParams.from = time.Unix(fromSec, 0)
 
-	// Parse to timestamp (required)
+	// Parse to timestamp (required) - supports Unix timestamps and relative time like "-1d"
 	toParam := c.QueryParam("to")
 	if toParam == "" {
 		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "to parameter is required")
 	}
 
-	toSec, err := strconv.ParseInt(toParam, 10, 64)
+	trParams.to, err = parseRelativeTime(toParam, now)
 	if err != nil {
-		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, "invalid to timestamp format")
+		return timeRangeParams{}, echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("invalid to parameter: %v", err))
 	}
-	trParams.to = time.Unix(toSec, 0)
 
 	// Validate time range
 	if trParams.from.Equal(trParams.to) || trParams.from.After(trParams.to) {
