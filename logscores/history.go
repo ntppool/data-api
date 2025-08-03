@@ -33,7 +33,6 @@ func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, 
 	log.DebugContext(ctx, "GetHistoryCH", "server", serverID, "monitor", monitorID, "since", since, "count", count, "full_history", fullHistory)
 
 	ls, err := ch.Logscores(ctx, int(serverID), int(monitorID), since, count, fullHistory)
-
 	if err != nil {
 		log.ErrorContext(ctx, "clickhouse logscores", "err", err)
 		return nil, err

@@ -30,7 +30,7 @@ func NewCLI() *CLI {
 
 // RootCmd represents the base command when called without any subcommands
 func (cli *CLI) rootCmd() *cobra.Command {
-	var cmd = &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "data-api",
 		Short: "A brief description of your application",
 		// Uncomment the following line if your bare application
@@ -47,7 +47,6 @@ func (cli *CLI) rootCmd() *cobra.Command {
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-
 	cli := NewCLI()
 
 	if err := cli.root.Execute(); err != nil {
@@ -57,7 +56,6 @@ func Execute() {
 }
 
 func (cli *CLI) init(cmd *cobra.Command) {
-
 	logger.Setup()
 
 	cmd.PersistentFlags().StringVar(&cfgFile, "database-config", "database.yaml", "config file (default is $HOME/.data-api.yaml)")

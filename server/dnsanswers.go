@@ -16,8 +16,10 @@ import (
 	"go.ntppool.org/data-api/ntpdb"
 )
 
-const pointBasis float64 = 10000
-const pointSymbol = "‱"
+const (
+	pointBasis  float64 = 10000
+	pointSymbol         = "‱"
+)
 
 // const pointBasis = 1000
 // const pointSymbol = "‰"
@@ -163,5 +165,4 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 	c.Response().Header().Set("Cache-Control", "public,max-age=1800")
 
 	return c.JSONPretty(http.StatusOK, r, "")
-
 }

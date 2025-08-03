@@ -84,7 +84,6 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 			} else {
 				// skip everything and use the special logic that we always include the most recent date
 				skipCount = float64(count) + 1
-
 			}
 		}
 
@@ -144,5 +143,4 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 
 	c.Response().Header().Set("Cache-Control", "s-maxage=28800, max-age=7200")
 	return c.JSON(http.StatusOK, rv)
-
 }

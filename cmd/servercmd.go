@@ -18,8 +18,7 @@ import (
 )
 
 func (cli *CLI) serverCmd() *cobra.Command {
-
-	var serverCmd = &cobra.Command{
+	serverCmd := &cobra.Command{
 		Use:   "server",
 		Short: "server starts the API server",
 		Long:  `starts the API server on (default) port 8000`,

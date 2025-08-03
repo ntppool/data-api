@@ -114,7 +114,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 	defer span.End()
 
 	args := []interface{}{serverID, from, to}
-	
+
 	query := `select id,monitor_id,server_id,ts,
                 toFloat64(score),toFloat64(step),offset,
                 rtt,leap,warning,error
@@ -131,15 +131,15 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 
 	// Always order by timestamp ASC for Grafana convention
 	query += " order by ts ASC"
-	
+
 	// Apply limit to prevent memory issues
 	if limit > 0 {
 		query += " limit ?"
 		args = append(args, limit)
 	}
 
-	log.DebugContext(ctx, "clickhouse time range query", 
-		"query", query, 
+	log.DebugContext(ctx, "clickhouse time range query",
+		"query", query,
 		"args", args,
 		"server_id", serverID,
 		"monitor_id", monitorID,
@@ -205,7 +205,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 		rv = append(rv, row)
 	}
 
-	log.InfoContext(ctx, "time range query results", 
+	log.InfoContext(ctx, "time range query results",
 		"rows_returned", len(rv),
 		"server_id", serverID,
 		"monitor_id", monitorID,
@@ -214,13 +214,15 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 		"sample_rows", func() []map[string]interface{} {
 			samples := make([]map[string]interface{}, 0, 3)
 			for i, row := range rv {
-				if i >= 3 { break }
+				if i >= 3 {
+					break
+				}
 				samples = append(samples, map[string]interface{}{
-					"id": row.ID,
-					"monitor_id": row.MonitorID,
-					"ts": row.Ts.Format(time.RFC3339),
-					"score": row.Score,
-					"rtt_valid": row.Rtt.Valid,
+					"id":           row.ID,
+					"monitor_id":   row.MonitorID,
+					"ts":           row.Ts.Format(time.RFC3339),
+					"score":        row.Score,
+					"rtt_valid":    row.Rtt.Valid,
 					"offset_valid": row.Offset.Valid,
 				})
 			}

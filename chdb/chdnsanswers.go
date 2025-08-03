@@ -24,15 +24,16 @@ type ServerTotals map[string]uint64
 func (s ServerQueries) Len() int {
 	return len(s)
 }
+
 func (s ServerQueries) Swap(i, j int) {
 	s[i], s[j] = s[j], s[i]
 }
+
 func (s ServerQueries) Less(i, j int) bool {
 	return s[i].Count > s[j].Count
 }
 
 func (d *ClickHouse) ServerAnswerCounts(ctx context.Context, serverIP string, days int) (ServerQueries, error) {
-
 	ctx, span := tracing.Tracer().Start(ctx, "ServerAnswerCounts")
 	defer span.End()
 
