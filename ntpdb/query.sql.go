@@ -16,7 +16,7 @@ const getMonitorByNameAndIPVersion = `-- name: GetMonitorByNameAndIPVersion :one
 select id, id_token, type, user_id, account_id, hostname, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on, deleted_on, is_current from monitors
 where
   tls_name like ? AND
-  ip_version = ? AND
+  (ip_version = ? OR (type = 'score' AND ip_version IS NULL)) AND
   is_current = 1 AND
   status != 'deleted'
   order by id
