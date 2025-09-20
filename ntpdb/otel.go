@@ -4,8 +4,6 @@
 
 package ntpdb
 
-//go:generate gowrap gen -p go.ntppool.org/data-api/ntpdb -i QuerierTx -t https://raw.githubusercontent.com/hexdigest/gowrap/6bd1bc023b4d2a619f30020924f258b8ff665a7a/templates/opentelemetry -o otel.go -l ""
-
 import (
 	"context"
 
