@@ -18,4 +18,8 @@ sql:
           - column: log_scores.attributes
             go_type: go.ntppool.org/common/types.LogScoreAttributes
           - column: "server_netspeed.netspeed_active"
-            go_type: "uint64"
+            go_type: "int"
+          - column: "zone_server_counts.netspeed_active"
+            go_type: "int"
+          - db_type: "bigint"
+            go_type: "int"

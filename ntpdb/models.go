@@ -339,5 +339,5 @@ type ZoneServerCount struct {
 	Date            time.Time                 `db:"date" json:"date"`
 	CountActive     uint32                    `db:"count_active" json:"count_active"`
 	CountRegistered uint32                    `db:"count_registered" json:"count_registered"`
-	NetspeedActive  uint32                    `db:"netspeed_active" json:"netspeed_active"`
+	NetspeedActive  int                       `db:"netspeed_active" json:"netspeed_active"`
 }

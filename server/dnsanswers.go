@@ -123,7 +123,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 		return c.String(http.StatusInternalServerError, err.Error())
 	}
 
-	zoneTotals := map[string]int32{}
+	zoneTotals := map[string]int{}
 
 	for _, z := range zoneStats {
 		zn := z.ZoneName
@@ -145,7 +145,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 			if zt == 0 {
 				// if the recorded netspeed for the zone was zero, assume it's at least
 				// this servers worth instead. Otherwise the Netspeed gets to be 'infinite'.
-				zt = int32(serverNetspeed)
+				zt = int(serverNetspeed)
 			}
 			cc.Netspeed = (pointBasis / float64(zt)) * float64(serverNetspeed)
 		}

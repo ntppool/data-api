@@ -421,7 +421,7 @@ type GetZoneStatsDataRow struct {
 	IpVersion       ZoneServerCountsIpVersion `db:"ip_version" json:"ip_version"`
 	CountActive     uint32                    `db:"count_active" json:"count_active"`
 	CountRegistered uint32                    `db:"count_registered" json:"count_registered"`
-	NetspeedActive  uint32                    `db:"netspeed_active" json:"netspeed_active"`
+	NetspeedActive  int                       `db:"netspeed_active" json:"netspeed_active"`
 }
 
 func (q *Queries) GetZoneStatsData(ctx context.Context) ([]GetZoneStatsDataRow, error) {
@@ -484,7 +484,7 @@ AS server_netspeed
 
 type GetZoneStatsV2Row struct {
 	ZoneName       string `db:"zone_name" json:"zone_name"`
-	NetspeedActive int32  `db:"netspeed_active" json:"netspeed_active"`
+	NetspeedActive int    `db:"netspeed_active" json:"netspeed_active"`
 }
 
 func (q *Queries) GetZoneStatsV2(ctx context.Context, ip string) ([]GetZoneStatsV2Row, error) {
