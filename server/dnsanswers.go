@@ -1,11 +1,11 @@
 package server
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"net/netip"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/sync/errgroup"
@@ -56,7 +56,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 	queryGroup, ctx := errgroup.WithContext(ctx)
 
 	var zoneStats []ntpdb.GetZoneStatsV2Row
-	var serverNetspeed uint32
+	var serverNetspeed int64
 
 	queryGroup.Go(func() error {
 		var err error
@@ -64,7 +64,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 		serverNetspeed, err = q.GetServerNetspeed(ctx, ip.String())
 		if err != nil {
-			if !errors.Is(err, sql.ErrNoRows) {
+			if !errors.Is(err, pgx.ErrNoRows) {
 				log.Error("GetServerNetspeed", "err", err)
 			}
 			return err // this will return if the server doesn't exist
@@ -116,7 +116,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 
 	err = queryGroup.Wait()
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return c.String(http.StatusNotFound, "Not found")
 		}
 		log.Error("query error", "err", err)
@@ -130,7 +130,7 @@ func (srv *Server) dnsAnswers(c echo.Context) error {
 		if zn == "@" {
 			zn = ""
 		}
-		zoneTotals[zn] = z.NetspeedActive // binary.BigEndian.Uint64(...)
+		zoneTotals[zn] = int(z.NetspeedActive) // binary.BigEndian.Uint64(...)
 		// log.Info("zone netspeed", "cc", z.ZoneName, "speed", z.NetspeedActive)
 	}
 

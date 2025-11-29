@@ -10,15 +10,15 @@ import (
 
 type Querier interface {
 	GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonitorByNameAndIPVersionParams) (Monitor, error)
-	GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]Monitor, error)
-	GetServerByID(ctx context.Context, id uint32) (Server, error)
+	GetMonitorsByID(ctx context.Context, monitorids []int64) ([]Monitor, error)
+	GetServerByID(ctx context.Context, id int64) (Server, error)
 	GetServerByIP(ctx context.Context, ip string) (Server, error)
 	GetServerLogScores(ctx context.Context, arg GetServerLogScoresParams) ([]LogScore, error)
 	GetServerLogScoresByMonitorID(ctx context.Context, arg GetServerLogScoresByMonitorIDParams) ([]LogScore, error)
-	GetServerNetspeed(ctx context.Context, ip string) (uint32, error)
+	GetServerNetspeed(ctx context.Context, ip string) (int64, error)
 	GetServerScores(ctx context.Context, arg GetServerScoresParams) ([]GetServerScoresRow, error)
 	GetZoneByName(ctx context.Context, name string) (Zone, error)
-	GetZoneCounts(ctx context.Context, zoneID uint32) ([]ZoneServerCount, error)
+	GetZoneCounts(ctx context.Context, zoneID int64) ([]ZoneServerCount, error)
 	GetZoneStatsData(ctx context.Context) ([]GetZoneStatsDataRow, error)
 	GetZoneStatsV2(ctx context.Context, ip string) ([]GetZoneStatsV2Row, error)
 }

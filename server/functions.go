@@ -2,12 +2,12 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/netip"
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
 	"go.ntppool.org/data-api/ntpdb"
@@ -22,7 +22,7 @@ func (srv *Server) FindServer(ctx context.Context, serverID string) (ntpdb.Serve
 	var serverData ntpdb.Server
 	var dberr error
 	if id, err := strconv.Atoi(serverID); id > 0 && err == nil {
-		serverData, dberr = q.GetServerByID(ctx, uint32(id))
+		serverData, dberr = q.GetServerByID(ctx, int64(id))
 	} else {
 		ip, err := netip.ParseAddr(serverID)
 		if err != nil || !ip.IsValid() {
@@ -31,7 +31,7 @@ func (srv *Server) FindServer(ctx context.Context, serverID string) (ntpdb.Serve
 		serverData, dberr = q.GetServerByIP(ctx, ip.String())
 	}
 	if dberr != nil {
-		if !errors.Is(dberr, sql.ErrNoRows) {
+		if !errors.Is(dberr, pgx.ErrNoRows) {
 			log.Error("could not query server id", "err", dberr)
 			return serverData, dberr
 		}

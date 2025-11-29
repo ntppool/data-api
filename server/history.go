@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/csv"
 	"errors"
 	"fmt"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/labstack/echo/v4"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
@@ -63,7 +64,7 @@ func paramHistoryMode(s string) historyMode {
 
 type historyParameters struct {
 	limit       int
-	monitorID   int
+	monitorID   int64
 	server      ntpdb.Server
 	since       time.Time
 	fullHistory bool
@@ -90,7 +91,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 
 	monitorParam := c.QueryParam("monitor")
 
-	var monitorID uint32
+	var monitorID int64
 	switch monitorParam {
 	case "":
 		name := "recentmedian.scores.ntp.dev"
@@ -101,7 +102,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 			ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV6, Valid: true}
 		}
 		monitor, err := q.GetMonitorByNameAndIPVersion(ctx, ntpdb.GetMonitorByNameAndIPVersionParams{
-			TlsName:   sql.NullString{Valid: true, String: name},
+			TlsName:   pgtype.Text{Valid: true, String: name},
 			IpVersion: ipVersion,
 		})
 		if err != nil {
@@ -111,9 +112,9 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 	case "*":
 		monitorID = 0 // don't filter on monitor ID
 	default:
-		mID, err := strconv.ParseUint(monitorParam, 10, 32)
+		mID, err := strconv.ParseInt(monitorParam, 10, 64)
 		if err == nil {
-			monitorID = uint32(mID)
+			monitorID = mID
 		} else {
 			// only accept the name prefix; no wildcards; trust the database
 			// to filter out any other crazy
@@ -129,11 +130,11 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 				ipVersion = ntpdb.NullMonitorsIpVersion{MonitorsIpVersion: ntpdb.MonitorsIpVersionV6, Valid: true}
 			}
 			monitor, err := q.GetMonitorByNameAndIPVersion(ctx, ntpdb.GetMonitorByNameAndIPVersionParams{
-				TlsName:   sql.NullString{Valid: true, String: monitorParam},
+				TlsName:   pgtype.Text{Valid: true, String: monitorParam},
 				IpVersion: ipVersion,
 			})
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, pgx.ErrNoRows) {
 					return p, echo.NewHTTPError(http.StatusNotFound, "monitor not found").WithInternal(err)
 				}
 				log.WarnContext(ctx, "could not find monitor", "name", monitorParam, "ip_version", server.IpVersion, "err", err)
@@ -144,7 +145,7 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 		}
 	}
 
-	p.monitorID = int(monitorID)
+	p.monitorID = monitorID
 	log.DebugContext(ctx, "monitor param", "monitor", monitorID, "ip_version", server.IpVersion)
 
 	since, _ := strconv.ParseInt(c.QueryParam("since"), 10, 64) // defaults to 0 so don't care if it parses
@@ -170,8 +171,8 @@ func (srv *Server) getHistoryParameters(ctx context.Context, c echo.Context, ser
 	return p, nil
 }
 
-func (srv *Server) getHistoryMySQL(ctx context.Context, _ echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
-	ls, err := logscores.GetHistoryMySQL(ctx, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit)
+func (srv *Server) getHistoryPostgres(ctx context.Context, _ echo.Context, p historyParameters) (*logscores.LogScoreHistory, error) {
+	ls, err := logscores.GetHistoryPostgres(ctx, srv.db, p.server.ID, p.monitorID, p.since, p.limit)
 	return ls, err
 }
 
@@ -230,9 +231,9 @@ func (srv *Server) history(c echo.Context) error {
 	}
 
 	if sourceParam == "m" {
-		history, err = srv.getHistoryMySQL(ctx, c, p)
+		history, err = srv.getHistoryPostgres(ctx, c, p)
 	} else {
-		history, err = logscores.GetHistoryClickHouse(ctx, srv.ch, srv.db, p.server.ID, uint32(p.monitorID), p.since, p.limit, p.fullHistory)
+		history, err = logscores.GetHistoryClickHouse(ctx, srv.ch, srv.db, p.server.ID, p.monitorID, p.since, p.limit, p.fullHistory)
 	}
 	if err != nil {
 		var httpError *echo.HTTPError
@@ -276,7 +277,7 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 	}
 
 	type MonitorEntry struct {
-		ID     uint32   `json:"id"`
+		ID     int64    `json:"id"`
 		Name   string   `json:"name"`
 		Type   string   `json:"type"`
 		Ts     string   `json:"ts"`
@@ -297,9 +298,9 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 
 	// log.InfoContext(ctx, "monitor id list", "ids", history.MonitorIDs)
 
-	monitorIDs := []uint32{}
+	monitorIDs := []int64{}
 	for k := range history.Monitors {
-		monitorIDs = append(monitorIDs, uint32(k))
+		monitorIDs = append(monitorIDs, int64(k))
 	}
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(srv.db))
@@ -318,12 +319,12 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 	// log.InfoContext(ctx, "got logScoreMonitors", "count", len(logScoreMonitors))
 
 	// Calculate average RTT per monitor
-	monitorRttSums := make(map[uint32]float64)
-	monitorRttCounts := make(map[uint32]int)
+	monitorRttSums := make(map[int64]float64)
+	monitorRttCounts := make(map[int64]int)
 
 	for _, ls := range history.LogScores {
 		if ls.MonitorID.Valid && ls.Rtt.Valid {
-			monitorID := uint32(ls.MonitorID.Int32)
+			monitorID := ls.MonitorID.Int64
 			monitorRttSums[monitorID] += float64(ls.Rtt.Int32) / 1000.0
 			monitorRttCounts[monitorID]++
 		}
@@ -362,8 +363,8 @@ func (srv *Server) historyJSON(ctx context.Context, c echo.Context, server ntpdb
 		x := float64(1000000000000)
 		score := math.Round(ls.Score*x) / x
 		res.History[i] = ScoresEntry{
-			TS:        ls.Ts.Unix(),
-			MonitorID: int(ls.MonitorID.Int32),
+			TS:        ls.Ts.Time.Unix(),
+			MonitorID: int(ls.MonitorID.Int64),
 			Step:      ls.Step,
 			Score:     score,
 		}
@@ -414,7 +415,7 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 		score := ff(l.Score)
 		var monName string
 		if l.MonitorID.Valid {
-			monName = history.Monitors[int(l.MonitorID.Int32)]
+			monName = history.Monitors[int(l.MonitorID.Int64)]
 		}
 		var leap string
 		if l.Attributes.Leap != 0 {
@@ -427,13 +428,13 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 		}
 
 		err := w.Write([]string{
-			strconv.Itoa(int(l.Ts.Unix())),
+			strconv.Itoa(int(l.Ts.Time.Unix())),
 			// l.Ts.Format(time.RFC3339),
-			l.Ts.Format("2006-01-02 15:04:05"),
+			l.Ts.Time.Format("2006-01-02 15:04:05"),
 			offset,
 			step,
 			score,
-			fmt.Sprintf("%d", l.MonitorID.Int32),
+			fmt.Sprintf("%d", l.MonitorID.Int64),
 			monName,
 			rtt,
 			leap,
@@ -464,7 +465,7 @@ func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) 
 	if len(history.LogScores) == 0 ||
 		// cache for longer if data hasn't updated for a while; or we didn't
 		// find any.
-		(time.Now().Add(-8 * time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts)) {
+		(time.Now().Add(-8 * time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts.Time)) {
 		hdr.Set("Cache-Control", "s-maxage=260,max-age=360")
 	} else {
 		if len(history.LogScores) == 1 {

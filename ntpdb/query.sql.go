@@ -7,28 +7,27 @@ package ntpdb
 
 import (
 	"context"
-	"database/sql"
-	"strings"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const getMonitorByNameAndIPVersion = `-- name: GetMonitorByNameAndIPVersion :one
 select id, id_token, type, user_id, account_id, hostname, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on, deleted_on, is_current from monitors
 where
-  tls_name like ? AND
-  (ip_version = ? OR (type = 'score' AND ip_version IS NULL)) AND
-  is_current = 1
+  tls_name like $1 AND
+  (ip_version = $2 OR (type = 'score' AND ip_version IS NULL)) AND
+  is_current = true
   order by id
   limit 1
 `
 
 type GetMonitorByNameAndIPVersionParams struct {
-	TlsName   sql.NullString        `db:"tls_name" json:"tls_name"`
+	TlsName   pgtype.Text           `db:"tls_name" json:"tls_name"`
 	IpVersion NullMonitorsIpVersion `db:"ip_version" json:"ip_version"`
 }
 
 func (q *Queries) GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonitorByNameAndIPVersionParams) (Monitor, error) {
-	row := q.db.QueryRowContext(ctx, getMonitorByNameAndIPVersion, arg.TlsName, arg.IpVersion)
+	row := q.db.QueryRow(ctx, getMonitorByNameAndIPVersion, arg.TlsName, arg.IpVersion)
 	var i Monitor
 	err := row.Scan(
 		&i.ID,
@@ -56,21 +55,11 @@ func (q *Queries) GetMonitorByNameAndIPVersion(ctx context.Context, arg GetMonit
 
 const getMonitorsByID = `-- name: GetMonitorsByID :many
 select id, id_token, type, user_id, account_id, hostname, location, ip, ip_version, tls_name, api_key, status, config, client_version, last_seen, last_submit, created_on, deleted_on, is_current from monitors
-where id in (/*SLICE:MonitorIDs*/?)
+where id = ANY($1::bigint[])
 `
 
-func (q *Queries) GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]Monitor, error) {
-	query := getMonitorsByID
-	var queryParams []interface{}
-	if len(monitorids) > 0 {
-		for _, v := range monitorids {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", strings.Repeat(",?", len(monitorids))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+func (q *Queries) GetMonitorsByID(ctx context.Context, monitorids []int64) ([]Monitor, error) {
+	rows, err := q.db.Query(ctx, getMonitorsByID, monitorids)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +92,6 @@ func (q *Queries) GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]M
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -115,11 +101,11 @@ func (q *Queries) GetMonitorsByID(ctx context.Context, monitorids []uint32) ([]M
 const getServerByID = `-- name: GetServerByID :one
 select id, ip, ip_version, user_id, account_id, hostname, stratum, in_pool, in_server_list, netspeed, netspeed_target, created_on, updated_on, score_ts, score_raw, deletion_on, flags from servers
 where
-  id = ?
+  id = $1
 `
 
-func (q *Queries) GetServerByID(ctx context.Context, id uint32) (Server, error) {
-	row := q.db.QueryRowContext(ctx, getServerByID, id)
+func (q *Queries) GetServerByID(ctx context.Context, id int64) (Server, error) {
+	row := q.db.QueryRow(ctx, getServerByID, id)
 	var i Server
 	err := row.Scan(
 		&i.ID,
@@ -146,11 +132,11 @@ func (q *Queries) GetServerByID(ctx context.Context, id uint32) (Server, error) 
 const getServerByIP = `-- name: GetServerByIP :one
 select id, ip, ip_version, user_id, account_id, hostname, stratum, in_pool, in_server_list, netspeed, netspeed_target, created_on, updated_on, score_ts, score_raw, deletion_on, flags from servers
 where
-  ip = ?
+  ip = $1
 `
 
 func (q *Queries) GetServerByIP(ctx context.Context, ip string) (Server, error) {
-	row := q.db.QueryRowContext(ctx, getServerByIP, ip)
+	row := q.db.QueryRow(ctx, getServerByIP, ip)
 	var i Server
 	err := row.Scan(
 		&i.ID,
@@ -175,20 +161,20 @@ func (q *Queries) GetServerByIP(ctx context.Context, ip string) (Server, error) 
 }
 
 const getServerLogScores = `-- name: GetServerLogScores :many
-select id, monitor_id, server_id, ts, score, step, offset, rtt, attributes from log_scores
+select id, monitor_id, server_id, ts, score, step, "offset", rtt, attributes from log_scores
 where
-  server_id = ?
+  server_id = $1
   order by ts desc
-  limit ?
+  limit $2
 `
 
 type GetServerLogScoresParams struct {
-	ServerID uint32 `db:"server_id" json:"server_id"`
-	Limit    int32  `db:"limit" json:"limit"`
+	ServerID int64 `db:"server_id" json:"server_id"`
+	Limit    int32 `db:"limit" json:"limit"`
 }
 
 func (q *Queries) GetServerLogScores(ctx context.Context, arg GetServerLogScoresParams) ([]LogScore, error) {
-	rows, err := q.db.QueryContext(ctx, getServerLogScores, arg.ServerID, arg.Limit)
+	rows, err := q.db.Query(ctx, getServerLogScores, arg.ServerID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -210,9 +196,6 @@ func (q *Queries) GetServerLogScores(ctx context.Context, arg GetServerLogScores
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -221,22 +204,22 @@ func (q *Queries) GetServerLogScores(ctx context.Context, arg GetServerLogScores
 }
 
 const getServerLogScoresByMonitorID = `-- name: GetServerLogScoresByMonitorID :many
-select id, monitor_id, server_id, ts, score, step, offset, rtt, attributes from log_scores
+select id, monitor_id, server_id, ts, score, step, "offset", rtt, attributes from log_scores
 where
-  server_id = ? AND
-  monitor_id = ?
+  server_id = $1 AND
+  monitor_id = $2
   order by ts desc
-  limit ?
+  limit $3
 `
 
 type GetServerLogScoresByMonitorIDParams struct {
-	ServerID  uint32        `db:"server_id" json:"server_id"`
-	MonitorID sql.NullInt32 `db:"monitor_id" json:"monitor_id"`
-	Limit     int32         `db:"limit" json:"limit"`
+	ServerID  int64       `db:"server_id" json:"server_id"`
+	MonitorID pgtype.Int8 `db:"monitor_id" json:"monitor_id"`
+	Limit     int32       `db:"limit" json:"limit"`
 }
 
 func (q *Queries) GetServerLogScoresByMonitorID(ctx context.Context, arg GetServerLogScoresByMonitorIDParams) ([]LogScore, error) {
-	rows, err := q.db.QueryContext(ctx, getServerLogScoresByMonitorID, arg.ServerID, arg.MonitorID, arg.Limit)
+	rows, err := q.db.Query(ctx, getServerLogScoresByMonitorID, arg.ServerID, arg.MonitorID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -259,9 +242,6 @@ func (q *Queries) GetServerLogScoresByMonitorID(ctx context.Context, arg GetServ
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -269,12 +249,12 @@ func (q *Queries) GetServerLogScoresByMonitorID(ctx context.Context, arg GetServ
 }
 
 const getServerNetspeed = `-- name: GetServerNetspeed :one
-select netspeed from servers where ip = ?
+select netspeed from servers where ip = $1
 `
 
-func (q *Queries) GetServerNetspeed(ctx context.Context, ip string) (uint32, error) {
-	row := q.db.QueryRowContext(ctx, getServerNetspeed, ip)
-	var netspeed uint32
+func (q *Queries) GetServerNetspeed(ctx context.Context, ip string) (int64, error) {
+	row := q.db.QueryRow(ctx, getServerNetspeed, ip)
+	var netspeed int64
 	err := row.Scan(&netspeed)
 	return netspeed, err
 }
@@ -287,39 +267,28 @@ select
     inner join monitors m
       on (m.id=ss.monitor_id)
 where
-  server_id = ? AND
-  monitor_id in (/*SLICE:MonitorIDs*/?)
+  server_id = $1 AND
+  monitor_id = ANY($2::bigint[])
 `
 
 type GetServerScoresParams struct {
-	ServerID   uint32   `db:"server_id" json:"server_id"`
-	MonitorIDs []uint32 `db:"MonitorIDs" json:"MonitorIDs"`
+	ServerID   int64   `db:"server_id" json:"server_id"`
+	MonitorIDs []int64 `db:"MonitorIDs" json:"MonitorIDs"`
 }
 
 type GetServerScoresRow struct {
-	ID       uint32             `db:"id" json:"id"`
+	ID       int64              `db:"id" json:"id"`
 	Hostname string             `db:"hostname" json:"hostname"`
-	TlsName  sql.NullString     `db:"tls_name" json:"tls_name"`
+	TlsName  pgtype.Text        `db:"tls_name" json:"tls_name"`
 	Location string             `db:"location" json:"location"`
 	Type     MonitorsType       `db:"type" json:"type"`
 	ScoreRaw float64            `db:"score_raw" json:"score_raw"`
-	ScoreTs  sql.NullTime       `db:"score_ts" json:"score_ts"`
+	ScoreTs  pgtype.Timestamptz `db:"score_ts" json:"score_ts"`
 	Status   ServerScoresStatus `db:"status" json:"status"`
 }
 
 func (q *Queries) GetServerScores(ctx context.Context, arg GetServerScoresParams) ([]GetServerScoresRow, error) {
-	query := getServerScores
-	var queryParams []interface{}
-	queryParams = append(queryParams, arg.ServerID)
-	if len(arg.MonitorIDs) > 0 {
-		for _, v := range arg.MonitorIDs {
-			queryParams = append(queryParams, v)
-		}
-		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", strings.Repeat(",?", len(arg.MonitorIDs))[1:], 1)
-	} else {
-		query = strings.Replace(query, "/*SLICE:MonitorIDs*/?", "NULL", 1)
-	}
-	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	rows, err := q.db.Query(ctx, getServerScores, arg.ServerID, arg.MonitorIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -341,9 +310,6 @@ func (q *Queries) GetServerScores(ctx context.Context, arg GetServerScoresParams
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -353,11 +319,11 @@ func (q *Queries) GetServerScores(ctx context.Context, arg GetServerScoresParams
 const getZoneByName = `-- name: GetZoneByName :one
 select id, name, description, parent_id, dns from zones
 where
-  name = ?
+  name = $1
 `
 
 func (q *Queries) GetZoneByName(ctx context.Context, name string) (Zone, error) {
-	row := q.db.QueryRowContext(ctx, getZoneByName, name)
+	row := q.db.QueryRow(ctx, getZoneByName, name)
 	var i Zone
 	err := row.Scan(
 		&i.ID,
@@ -371,12 +337,12 @@ func (q *Queries) GetZoneByName(ctx context.Context, name string) (Zone, error) 
 
 const getZoneCounts = `-- name: GetZoneCounts :many
 select id, zone_id, ip_version, date, count_active, count_registered, netspeed_active from zone_server_counts
-  where zone_id = ?
+  where zone_id = $1
   order by date
 `
 
-func (q *Queries) GetZoneCounts(ctx context.Context, zoneID uint32) ([]ZoneServerCount, error) {
-	rows, err := q.db.QueryContext(ctx, getZoneCounts, zoneID)
+func (q *Queries) GetZoneCounts(ctx context.Context, zoneID int64) ([]ZoneServerCount, error) {
+	rows, err := q.db.Query(ctx, getZoneCounts, zoneID)
 	if err != nil {
 		return nil, err
 	}
@@ -397,9 +363,6 @@ func (q *Queries) GetZoneCounts(ctx context.Context, zoneID uint32) ([]ZoneServe
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -408,7 +371,7 @@ func (q *Queries) GetZoneCounts(ctx context.Context, zoneID uint32) ([]ZoneServe
 
 const getZoneStatsData = `-- name: GetZoneStatsData :many
 SELECT zc.date, z.name, zc.ip_version, count_active, count_registered, netspeed_active
-FROM zone_server_counts zc USE INDEX (date_idx)
+FROM zone_server_counts zc
   INNER JOIN zones z
     ON(zc.zone_id=z.id)
   WHERE date IN (SELECT max(date) from zone_server_counts)
@@ -416,16 +379,16 @@ ORDER BY name
 `
 
 type GetZoneStatsDataRow struct {
-	Date            time.Time                 `db:"date" json:"date"`
+	Date            pgtype.Date               `db:"date" json:"date"`
 	Name            string                    `db:"name" json:"name"`
 	IpVersion       ZoneServerCountsIpVersion `db:"ip_version" json:"ip_version"`
-	CountActive     uint32                    `db:"count_active" json:"count_active"`
-	CountRegistered uint32                    `db:"count_registered" json:"count_registered"`
+	CountActive     int32                     `db:"count_active" json:"count_active"`
+	CountRegistered int32                     `db:"count_registered" json:"count_registered"`
 	NetspeedActive  int                       `db:"netspeed_active" json:"netspeed_active"`
 }
 
 func (q *Queries) GetZoneStatsData(ctx context.Context) ([]GetZoneStatsDataRow, error) {
-	rows, err := q.db.QueryContext(ctx, getZoneStatsData)
+	rows, err := q.db.Query(ctx, getZoneStatsData)
 	if err != nil {
 		return nil, err
 	}
@@ -445,9 +408,6 @@ func (q *Queries) GetZoneStatsData(ctx context.Context) ([]GetZoneStatsDataRow, 
 		}
 		items = append(items, i)
 	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -455,15 +415,14 @@ func (q *Queries) GetZoneStatsData(ctx context.Context) ([]GetZoneStatsDataRow, 
 }
 
 const getZoneStatsV2 = `-- name: GetZoneStatsV2 :many
-select zone_name, netspeed_active+0 as netspeed_active FROM (
 SELECT
 	z.name as zone_name,
-	SUM(
-		IF (deletion_on IS NULL AND score_raw > 10,
-			netspeed,
-		  0
-    )
-	) AS netspeed_active
+	CAST(SUM(
+		CASE WHEN deletion_on IS NULL AND score_raw > 10
+			THEN netspeed
+			ELSE 0
+		END
+	) AS int) AS netspeed_active
 FROM
 	servers s
 	INNER JOIN server_zones sz ON (sz.server_id = s.id)
@@ -472,23 +431,22 @@ FROM
     select zone_id, s.ip_version
     from server_zones sz
       inner join servers s on (s.id=sz.server_id)
-    where s.ip=?
+    where s.ip=$1
   ) as srvz on (srvz.zone_id=z.id AND srvz.ip_version=s.ip_version)
 WHERE
 	(deletion_on IS NULL OR deletion_on > NOW())
 	AND in_pool = 1
 	AND netspeed > 0
-GROUP BY z.name)
-AS server_netspeed
+GROUP BY z.name
 `
 
 type GetZoneStatsV2Row struct {
 	ZoneName       string `db:"zone_name" json:"zone_name"`
-	NetspeedActive int    `db:"netspeed_active" json:"netspeed_active"`
+	NetspeedActive int32  `db:"netspeed_active" json:"netspeed_active"`
 }
 
 func (q *Queries) GetZoneStatsV2(ctx context.Context, ip string) ([]GetZoneStatsV2Row, error) {
-	rows, err := q.db.QueryContext(ctx, getZoneStatsV2, ip)
+	rows, err := q.db.Query(ctx, getZoneStatsV2, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -500,9 +458,6 @@ func (q *Queries) GetZoneStatsV2(ctx context.Context, ip string) ([]GetZoneStats
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

@@ -2,17 +2,16 @@ package server
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo-contrib/echoprometheus"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -36,7 +35,7 @@ import (
 )
 
 type Server struct {
-	db     *sql.DB
+	db     *pgxpool.Pool
 	ch     *chdb.ClickHouse
 	config *config.Config
 
@@ -55,7 +54,7 @@ func NewServer(ctx context.Context, configFile string) (*Server, error) {
 	}
 	db, err := ntpdb.OpenDB(ctx, configFile)
 	if err != nil {
-		return nil, fmt.Errorf("mysql open: %w", err)
+		return nil, fmt.Errorf("postgres open: %w", err)
 	}
 
 	conf := config.New()
@@ -308,22 +307,9 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		defer cancel()
 		g, ctx := errgroup.WithContext(ctx)
 
-		stats := srv.db.Stats()
-		if stats.OpenConnections > 3 {
-			log.InfoContext(ctx, "health requests", "url", req.URL.String(), "stats", stats)
-		}
-
-		if resetParam := req.URL.Query().Get("reset"); resetParam != "" {
-			reset, err := strconv.ParseBool(resetParam)
-			log.InfoContext(ctx, "db reset request", "err", err, "reset", reset)
-
-			if err == nil && reset {
-				// this feature was to debug some specific problem
-				log.InfoContext(ctx, "setting idle db conns to zero")
-				srv.db.SetConnMaxLifetime(30 * time.Second)
-				srv.db.SetMaxIdleConns(0)
-				srv.db.SetMaxIdleConns(4)
-			}
+		stats := srv.db.Stat()
+		if stats.TotalConns() > 3 {
+			log.InfoContext(ctx, "health requests", "url", req.URL.String(), "total_conns", stats.TotalConns())
 		}
 
 		g.Go(func() error {
@@ -345,7 +331,7 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		})
 
 		g.Go(func() error {
-			err := srv.db.PingContext(ctx)
+			err := srv.db.Ping(ctx)
 			if err != nil {
 				log.WarnContext(ctx, "db ping", "err", err)
 				return err

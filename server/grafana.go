@@ -195,7 +195,7 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 			skippedInvalidMonitors++
 			continue
 		}
-		monitorID := int(ls.MonitorID.Int32)
+		monitorID := int(ls.MonitorID.Int64)
 		monitorData[monitorID] = append(monitorData[monitorID], ls)
 	}
 
@@ -275,7 +275,7 @@ func transformToGrafanaTableFormat(history *logscores.LogScoreHistory, monitors 
 		var values [][]interface{}
 		for _, ls := range logScores {
 			// Convert timestamp to milliseconds
-			timestampMs := ls.Ts.Unix() * 1000
+			timestampMs := ls.Ts.Time.Unix() * 1000
 
 			// Create row: [time, score, rtt, offset]
 			row := []interface{}{
@@ -382,7 +382,7 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 		"time_range_duration", params.to.Sub(params.from).String(),
 	)
 
-	logScores, err := srv.ch.LogscoresTimeRange(ctx, int(server.ID), params.monitorID, params.from, params.to, params.maxDataPoints)
+	logScores, err := srv.ch.LogscoresTimeRange(ctx, int(server.ID), int(params.monitorID), params.from, params.to, params.maxDataPoints)
 	if err != nil {
 		log.ErrorContext(ctx, "clickhouse time range query", "err", err,
 			"server_id", server.ID,
@@ -397,8 +397,8 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 	log.InfoContext(ctx, "clickhouse query results",
 		"server_id", server.ID,
 		"rows_returned", len(logScores),
-		"first_few_ids", func() []uint64 {
-			ids := make([]uint64, 0, 3)
+		"first_few_ids", func() []int64 {
+			ids := make([]int64, 0, 3)
 			for i, ls := range logScores {
 				if i >= 3 {
 					break
@@ -416,10 +416,10 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 	}
 
 	// Get monitor names for the returned data
-	monitorIDs := []uint32{}
+	monitorIDs := []int64{}
 	for _, ls := range logScores {
 		if ls.MonitorID.Valid {
-			monitorID := uint32(ls.MonitorID.Int32)
+			monitorID := ls.MonitorID.Int64
 			if _, exists := history.Monitors[int(monitorID)]; !exists {
 				history.Monitors[int(monitorID)] = ""
 				monitorIDs = append(monitorIDs, monitorID)

@@ -1,12 +1,12 @@
 package server
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/labstack/echo/v4"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
@@ -27,7 +27,7 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 
 	zone, err := q.GetZoneByName(ctx, c.Param("zone_name"))
 	if err != nil || zone.ID == 0 {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return c.String(http.StatusNotFound, "Not found")
 		}
 		log.ErrorContext(ctx, "could not query for zone", "err", err)
@@ -37,7 +37,7 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 
 	counts, err := q.GetZoneCounts(ctx, zone.ID)
 	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
+		if !errors.Is(err, pgx.ErrNoRows) {
 			log.ErrorContext(ctx, "get counts", "err", err)
 			span.RecordError(err)
 			return c.String(http.StatusInternalServerError, "internal error")
@@ -71,7 +71,7 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 		count := 0
 		dates := map[int64]bool{}
 		for _, c := range counts {
-			ep := c.Date.Unix()
+			ep := c.Date.Time.Unix()
 			if _, ok := dates[ep]; !ok {
 				count++
 				dates[ep] = true
@@ -99,13 +99,13 @@ func (srv *Server) zoneCounts(c echo.Context) error {
 	lastSkip := int64(0)
 	skipThreshold := 0.5
 	for _, c := range counts {
-		cDate := c.Date.Unix()
+		cDate := c.Date.Time.Unix()
 		if (toSkip <= skipThreshold && cDate != lastSkip) ||
 			lastDate == cDate ||
 			mostRecentDate == cDate {
-			// log.Info("adding date", "date", c.Date.Format(time.DateOnly))
+			// log.Info("adding date", "date", c.Date.Time.Format(time.DateOnly))
 			rv.History = append(rv.History, historyEntry{
-				D:  c.Date.Format(time.DateOnly),
+				D:  c.Date.Time.Format(time.DateOnly),
 				Ts: int(cDate),
 				Ac: int(c.CountActive),
 				Rc: int(c.CountRegistered),

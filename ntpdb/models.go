@@ -5,11 +5,10 @@
 package ntpdb
 
 import (
-	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.ntppool.org/common/types"
 )
 
@@ -271,73 +270,73 @@ func (ns NullZoneServerCountsIpVersion) Value() (driver.Value, error) {
 }
 
 type LogScore struct {
-	ID         uint64                   `db:"id" json:"id"`
-	MonitorID  sql.NullInt32            `db:"monitor_id" json:"monitor_id"`
-	ServerID   uint32                   `db:"server_id" json:"server_id"`
-	Ts         time.Time                `db:"ts" json:"ts"`
+	ID         int64                    `db:"id" json:"id"`
+	MonitorID  pgtype.Int8              `db:"monitor_id" json:"monitor_id"`
+	ServerID   int64                    `db:"server_id" json:"server_id"`
+	Ts         pgtype.Timestamptz       `db:"ts" json:"ts"`
 	Score      float64                  `db:"score" json:"score"`
 	Step       float64                  `db:"step" json:"step"`
-	Offset     sql.NullFloat64          `db:"offset" json:"offset"`
-	Rtt        sql.NullInt32            `db:"rtt" json:"rtt"`
+	Offset     pgtype.Float8            `db:"offset" json:"offset"`
+	Rtt        pgtype.Int4              `db:"rtt" json:"rtt"`
 	Attributes types.LogScoreAttributes `db:"attributes" json:"attributes"`
 }
 
 type Monitor struct {
-	ID            uint32                `db:"id" json:"id"`
-	IDToken       sql.NullString        `db:"id_token" json:"id_token"`
+	ID            int64                 `db:"id" json:"id"`
+	IDToken       pgtype.Text           `db:"id_token" json:"id_token"`
 	Type          MonitorsType          `db:"type" json:"type"`
-	UserID        sql.NullInt32         `db:"user_id" json:"user_id"`
-	AccountID     sql.NullInt32         `db:"account_id" json:"account_id"`
+	UserID        pgtype.Int8           `db:"user_id" json:"user_id"`
+	AccountID     pgtype.Int8           `db:"account_id" json:"account_id"`
 	Hostname      string                `db:"hostname" json:"hostname"`
 	Location      string                `db:"location" json:"location"`
-	Ip            sql.NullString        `db:"ip" json:"ip"`
+	Ip            pgtype.Text           `db:"ip" json:"ip"`
 	IpVersion     NullMonitorsIpVersion `db:"ip_version" json:"ip_version"`
-	TlsName       sql.NullString        `db:"tls_name" json:"tls_name"`
-	ApiKey        sql.NullString        `db:"api_key" json:"api_key"`
+	TlsName       pgtype.Text           `db:"tls_name" json:"tls_name"`
+	ApiKey        pgtype.Text           `db:"api_key" json:"api_key"`
 	Status        MonitorsStatus        `db:"status" json:"status"`
 	Config        string                `db:"config" json:"config"`
 	ClientVersion string                `db:"client_version" json:"client_version"`
-	LastSeen      sql.NullTime          `db:"last_seen" json:"last_seen"`
-	LastSubmit    sql.NullTime          `db:"last_submit" json:"last_submit"`
-	CreatedOn     time.Time             `db:"created_on" json:"created_on"`
-	DeletedOn     sql.NullTime          `db:"deleted_on" json:"deleted_on"`
-	IsCurrent     sql.NullBool          `db:"is_current" json:"is_current"`
+	LastSeen      pgtype.Timestamptz    `db:"last_seen" json:"last_seen"`
+	LastSubmit    pgtype.Timestamptz    `db:"last_submit" json:"last_submit"`
+	CreatedOn     pgtype.Timestamptz    `db:"created_on" json:"created_on"`
+	DeletedOn     pgtype.Timestamptz    `db:"deleted_on" json:"deleted_on"`
+	IsCurrent     pgtype.Bool           `db:"is_current" json:"is_current"`
 }
 
 type Server struct {
-	ID             uint32           `db:"id" json:"id"`
-	Ip             string           `db:"ip" json:"ip"`
-	IpVersion      ServersIpVersion `db:"ip_version" json:"ip_version"`
-	UserID         sql.NullInt32    `db:"user_id" json:"user_id"`
-	AccountID      sql.NullInt32    `db:"account_id" json:"account_id"`
-	Hostname       sql.NullString   `db:"hostname" json:"hostname"`
-	Stratum        sql.NullInt16    `db:"stratum" json:"stratum"`
-	InPool         uint8            `db:"in_pool" json:"in_pool"`
-	InServerList   uint8            `db:"in_server_list" json:"in_server_list"`
-	Netspeed       uint32           `db:"netspeed" json:"netspeed"`
-	NetspeedTarget uint32           `db:"netspeed_target" json:"netspeed_target"`
-	CreatedOn      time.Time        `db:"created_on" json:"created_on"`
-	UpdatedOn      time.Time        `db:"updated_on" json:"updated_on"`
-	ScoreTs        sql.NullTime     `db:"score_ts" json:"score_ts"`
-	ScoreRaw       float64          `db:"score_raw" json:"score_raw"`
-	DeletionOn     sql.NullTime     `db:"deletion_on" json:"deletion_on"`
-	Flags          string           `db:"flags" json:"flags"`
+	ID             int64              `db:"id" json:"id"`
+	Ip             string             `db:"ip" json:"ip"`
+	IpVersion      ServersIpVersion   `db:"ip_version" json:"ip_version"`
+	UserID         pgtype.Int8        `db:"user_id" json:"user_id"`
+	AccountID      pgtype.Int8        `db:"account_id" json:"account_id"`
+	Hostname       pgtype.Text        `db:"hostname" json:"hostname"`
+	Stratum        pgtype.Int2        `db:"stratum" json:"stratum"`
+	InPool         int16              `db:"in_pool" json:"in_pool"`
+	InServerList   int16              `db:"in_server_list" json:"in_server_list"`
+	Netspeed       int64              `db:"netspeed" json:"netspeed"`
+	NetspeedTarget int64              `db:"netspeed_target" json:"netspeed_target"`
+	CreatedOn      pgtype.Timestamptz `db:"created_on" json:"created_on"`
+	UpdatedOn      pgtype.Timestamptz `db:"updated_on" json:"updated_on"`
+	ScoreTs        pgtype.Timestamptz `db:"score_ts" json:"score_ts"`
+	ScoreRaw       float64            `db:"score_raw" json:"score_raw"`
+	DeletionOn     pgtype.Date        `db:"deletion_on" json:"deletion_on"`
+	Flags          string             `db:"flags" json:"flags"`
 }
 
 type Zone struct {
-	ID          uint32         `db:"id" json:"id"`
-	Name        string         `db:"name" json:"name"`
-	Description sql.NullString `db:"description" json:"description"`
-	ParentID    sql.NullInt32  `db:"parent_id" json:"parent_id"`
-	Dns         bool           `db:"dns" json:"dns"`
+	ID          int64       `db:"id" json:"id"`
+	Name        string      `db:"name" json:"name"`
+	Description pgtype.Text `db:"description" json:"description"`
+	ParentID    pgtype.Int8 `db:"parent_id" json:"parent_id"`
+	Dns         bool        `db:"dns" json:"dns"`
 }
 
 type ZoneServerCount struct {
-	ID              uint32                    `db:"id" json:"id"`
-	ZoneID          uint32                    `db:"zone_id" json:"zone_id"`
+	ID              int64                     `db:"id" json:"id"`
+	ZoneID          int64                     `db:"zone_id" json:"zone_id"`
 	IpVersion       ZoneServerCountsIpVersion `db:"ip_version" json:"ip_version"`
-	Date            time.Time                 `db:"date" json:"date"`
-	CountActive     uint32                    `db:"count_active" json:"count_active"`
-	CountRegistered uint32                    `db:"count_registered" json:"count_registered"`
+	Date            pgtype.Date               `db:"date" json:"date"`
+	CountActive     int32                     `db:"count_active" json:"count_active"`
+	CountRegistered int32                     `db:"count_registered" json:"count_registered"`
 	NetspeedActive  int                       `db:"netspeed_active" json:"netspeed_active"`
 }

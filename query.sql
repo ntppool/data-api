@@ -1,6 +1,6 @@
 -- name: GetZoneStatsData :many
 SELECT zc.date, z.name, zc.ip_version, count_active, count_registered, netspeed_active
-FROM zone_server_counts zc USE INDEX (date_idx)
+FROM zone_server_counts zc
   INNER JOIN zones z
     ON(zc.zone_id=z.id)
   WHERE date IN (SELECT max(date) from zone_server_counts)
@@ -8,18 +8,17 @@ ORDER BY name;
 
 
 -- name: GetServerNetspeed :one
-select netspeed from servers where ip = ?;
+select netspeed from servers where ip = $1;
 
 -- name: GetZoneStatsV2 :many
-select zone_name, netspeed_active+0 as netspeed_active FROM (
 SELECT
 	z.name as zone_name,
-	SUM(
-		IF (deletion_on IS NULL AND score_raw > 10,
-			netspeed,
-		  0
-    )
-	) AS netspeed_active
+	CAST(SUM(
+		CASE WHEN deletion_on IS NULL AND score_raw > 10
+			THEN netspeed
+			ELSE 0
+		END
+	) AS int) AS netspeed_active
 FROM
 	servers s
 	INNER JOIN server_zones sz ON (sz.server_id = s.id)
@@ -28,19 +27,18 @@ FROM
     select zone_id, s.ip_version
     from server_zones sz
       inner join servers s on (s.id=sz.server_id)
-    where s.ip=?
+    where s.ip=$1
   ) as srvz on (srvz.zone_id=z.id AND srvz.ip_version=s.ip_version)
 WHERE
 	(deletion_on IS NULL OR deletion_on > NOW())
 	AND in_pool = 1
 	AND netspeed > 0
-GROUP BY z.name)
-AS server_netspeed;
+GROUP BY z.name;
 
 -- name: GetServerByID :one
 select * from servers
 where
-  id = ?;
+  id = $1;
 
 -- name: GetServerByIP :one
 select * from servers
@@ -52,13 +50,13 @@ select * from monitors
 where
   tls_name like sqlc.arg('tls_name') AND
   (ip_version = sqlc.arg('ip_version') OR (type = 'score' AND ip_version IS NULL)) AND
-  is_current = 1
+  is_current = true
   order by id
   limit 1;
 
 -- name: GetMonitorsByID :many
 select * from monitors
-where id in (sqlc.slice('MonitorIDs'));
+where id = ANY(sqlc.arg('MonitorIDs')::bigint[]);
 
 -- name: GetServerScores :many
 select
@@ -68,23 +66,23 @@ select
     inner join monitors m
       on (m.id=ss.monitor_id)
 where
-  server_id = ? AND
-  monitor_id in (sqlc.slice('MonitorIDs'));
+  server_id = $1 AND
+  monitor_id = ANY(sqlc.arg('MonitorIDs')::bigint[]);
 
 -- name: GetServerLogScores :many
 select * from log_scores
 where
-  server_id = ?
+  server_id = $1
   order by ts desc
-  limit ?;
+  limit $2;
 
 -- name: GetServerLogScoresByMonitorID :many
 select * from log_scores
 where
-  server_id = ? AND
-  monitor_id = ?
+  server_id = $1 AND
+  monitor_id = $2
   order by ts desc
-  limit ?;
+  limit $3;
 
 -- name: GetZoneByName :one
 select * from zones
@@ -93,5 +91,5 @@ where
 
 -- name: GetZoneCounts :many
 select * from zone_server_counts
-  where zone_id = ?
+  where zone_id = $1
   order by date;

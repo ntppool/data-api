@@ -2,9 +2,10 @@ package logscores
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
 	"go.ntppool.org/data-api/chdb"
@@ -19,12 +20,12 @@ type LogScoreHistory struct {
 	// MonitorIDs []uint32
 }
 
-func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, serverID, monitorID uint32, since time.Time, count int, fullHistory bool) (*LogScoreHistory, error) {
+func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *pgxpool.Pool, serverID, monitorID int64, since time.Time, count int, fullHistory bool) (*LogScoreHistory, error) {
 	log := logger.FromContext(ctx)
 	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryClickHouse",
 		trace.WithAttributes(
-			attribute.Int("server", int(serverID)),
-			attribute.Int("monitor", int(monitorID)),
+			attribute.Int64("server", serverID),
+			attribute.Int64("monitor", monitorID),
 			attribute.Bool("full_history", fullHistory),
 		),
 	)
@@ -51,17 +52,17 @@ func GetHistoryClickHouse(ctx context.Context, ch *chdb.ClickHouse, db *sql.DB, 
 	}, nil
 }
 
-func GetHistoryMySQL(ctx context.Context, db *sql.DB, serverID, monitorID uint32, since time.Time, count int) (*LogScoreHistory, error) {
+func GetHistoryPostgres(ctx context.Context, db *pgxpool.Pool, serverID, monitorID int64, since time.Time, count int) (*LogScoreHistory, error) {
 	log := logger.FromContext(ctx)
-	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryMySQL")
+	ctx, span := tracing.Tracer().Start(ctx, "logscores.GetHistoryPostgres")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.Int("server", int(serverID)),
-		attribute.Int("monitor", int(monitorID)),
+		attribute.Int64("server", serverID),
+		attribute.Int64("monitor", monitorID),
 	)
 
-	log.Debug("GetHistoryMySQL", "server", serverID, "monitor", monitorID, "since", since, "count", count)
+	log.Debug("GetHistoryPostgres", "server", serverID, "monitor", monitorID, "since", since, "count", count)
 
 	q := ntpdb.NewWrappedQuerier(ntpdb.New(db))
 
@@ -69,13 +70,13 @@ func GetHistoryMySQL(ctx context.Context, db *sql.DB, serverID, monitorID uint32
 	var err error
 	if monitorID > 0 {
 		ls, err = q.GetServerLogScoresByMonitorID(ctx, ntpdb.GetServerLogScoresByMonitorIDParams{
-			ServerID:  serverID,
-			MonitorID: sql.NullInt32{Int32: int32(monitorID), Valid: true},
+			ServerID:  int64(serverID),
+			MonitorID: pgtype.Int8{Int64: int64(monitorID), Valid: true},
 			Limit:     int32(count),
 		})
 	} else {
 		ls, err = q.GetServerLogScores(ctx, ntpdb.GetServerLogScoresParams{
-			ServerID: serverID,
+			ServerID: int64(serverID),
 			Limit:    int32(count),
 		})
 	}
@@ -97,12 +98,12 @@ func GetHistoryMySQL(ctx context.Context, db *sql.DB, serverID, monitorID uint32
 
 func getMonitorNames(ctx context.Context, ls []ntpdb.LogScore, q ntpdb.QuerierTx) (map[int]string, error) {
 	monitors := map[int]string{}
-	monitorIDs := []uint32{}
+	monitorIDs := []int64{}
 	for _, l := range ls {
 		if !l.MonitorID.Valid {
 			continue
 		}
-		mID := uint32(l.MonitorID.Int32)
+		mID := l.MonitorID.Int64
 		if _, ok := monitors[int(mID)]; !ok {
 			monitors[int(mID)] = ""
 			monitorIDs = append(monitorIDs, mID)

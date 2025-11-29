@@ -220,7 +220,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 				samples = append(samples, map[string]interface{}{
 					"id":           row.ID,
 					"monitor_id":   row.MonitorID,
-					"ts":           row.Ts.Format(time.RFC3339),
+					"ts":           row.Ts.Time.Format(time.RFC3339),
 					"score":        row.Score,
 					"rtt_valid":    row.Rtt.Valid,
 					"offset_valid": row.Offset.Valid,
