@@ -15,6 +15,19 @@ variables:
     - go-pkg:/go/pkg
 
 steps:
+  - name: vendor
+    image: golang:1.26
+    pull: true
+    environment:
+      GOMODCACHE: /go/pkg/mod
+      GOCACHE: /go/pkg/cache
+    volumes: *go_volumes
+    secrets: [gitea_token]
+    commands:
+      - printf "machine gitea.develooper.com\nlogin __token__\npassword $GITEA_TOKEN\n" > ~/.netrc
+      - go mod vendor
+      - rm -f ~/.netrc
+
   - name: test
     image: golang:1.26
     pull: true
@@ -23,6 +36,7 @@ steps:
     commands:
       - go test -v ./...
       - go build ./...
+    depends_on: [vendor]
 
   - name: goreleaser
     image: golang:1.26
