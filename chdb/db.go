@@ -2,6 +2,7 @@ package chdb
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -67,11 +68,11 @@ func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error
 
 	ch.Logs, err = open(ctx, cfg.ClickHouse.Logs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("logs: %w", err)
 	}
 	ch.Scores, err = open(ctx, cfg.ClickHouse.Scores)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("scores: %w", err)
 	}
 
 	return ch, nil
