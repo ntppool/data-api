@@ -1,6 +1,6 @@
 package chdb
 
-// queries to the GeoDNS database
+// queries to the DNS database
 
 import (
 	"context"
@@ -208,7 +208,7 @@ func (d *ClickHouse) DNSQueries(ctx context.Context) ([]DNSQueryCounts, error) {
   sum(q)/300 as avg, max(q) as max
 from (
  select window as t, sumSimpleState(queries) as q
- from geodns.by_origin_1s
+ from dns.by_origin_1s
  where
    window > FROM_UNIXTIME(?)
    and Origin IN ('pool.ntp.org', 'g.ntpns.org')
