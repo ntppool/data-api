@@ -1,3 +1,4 @@
 data-api
 database.yaml
 dist/
+/vendor/

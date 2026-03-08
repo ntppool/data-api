@@ -29,7 +29,7 @@ import (
 	"go.ntppool.org/common/version"
 	"go.ntppool.org/common/xff/fastlyxff"
 
-	"go.ntppool.org/api/config"
+	"go.ntppool.org/common/config"
 
 	chdb "go.ntppool.org/data-api/chdb"
 	"go.ntppool.org/data-api/ntpdb"
