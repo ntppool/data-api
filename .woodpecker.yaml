@@ -1,0 +1,69 @@
+when:
+  - event: [push, pull_request, tag, manual]
+
+clone:
+  git:
+    image: woodpeckerci/plugin-git
+    settings:
+      tags: true
+
+variables:
+  - &go_env
+    GOMODCACHE: /go/pkg/mod
+    GOCACHE: /go/pkg/cache
+  - &go_volumes
+    - go-pkg:/go/pkg
+
+steps:
+  - name: test
+    image: golang:1.26
+    pull: true
+    environment: *go_env
+    volumes: *go_volumes
+    commands:
+      - go test -v ./...
+      - go build ./...
+
+  - name: goreleaser
+    image: golang:1.26
+    pull: true
+    environment: *go_env
+    volumes: *go_volumes
+    commands:
+      - ./scripts/run-goreleaser
+    backend_options:
+      kubernetes:
+        resources:
+          requests:
+            cpu: 6000
+            memory: 1024Mi
+          limits:
+            cpu: 10000
+            memory: 4096Mi
+    depends_on: [test]
+
+  - name: generate-tags
+    image: ghcr.io/abh/woodpecker-docker-tags-plugin:sha-8a3bd7c
+    settings:
+      tags: |
+        branch
+        sha
+        semver --auto
+        edge -v latest
+    when:
+      - event: [push, tag, manual]
+    depends_on: [goreleaser]
+
+  - name: docker
+    image: woodpeckerci/plugin-kaniko
+    settings:
+      registry: harbor.ntppool.org
+      repo: ntppool/data-api
+      cache: true
+      username:
+        from_secret: harbor_username
+      password:
+        from_secret: harbor_password
+    when:
+      - event: [push, tag, manual]
+    depends_on: [goreleaser, generate-tags]
