@@ -21,8 +21,9 @@ steps:
     environment:
       GOMODCACHE: /go/pkg/mod
       GOCACHE: /go/pkg/cache
+      GITEA_TOKEN:
+        from_secret: gitea_token
     volumes: *go_volumes
-    secrets: [gitea_token]
     commands:
       - printf "machine gitea.develooper.com\nlogin __token__\npassword $GITEA_TOKEN\n" > ~/.netrc
       - go mod vendor
