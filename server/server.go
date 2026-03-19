@@ -187,6 +187,10 @@ func (srv *Server) Run() error {
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))
 
+	e.Pre(middleware.Rewrite(map[string]string{
+		"/api/data/*": "/api/$1",
+	}))
+
 	e.Use(middleware.RecoverWithConfig(middleware.RecoverConfig{
 		LogErrorFunc: func(c echo.Context, err error, stack []byte) error {
 			log.ErrorContext(c.Request().Context(), err.Error(), "stack", string(stack))
