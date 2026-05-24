@@ -2,15 +2,61 @@ package chdb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.ntppool.org/common/logger"
 	"go.ntppool.org/common/tracing"
 	"go.ntppool.org/data-api/ntpdb"
 )
+
+// scanLogScore reads one ClickHouse log_scores row into an ntpdb.LogScore.
+// The ClickHouse columns are unsigned (id UInt64, monitor_id/server_id UInt32,
+// rtt UInt32), but the PostgreSQL-generated model uses signed/pgtype fields, so
+// the row is scanned into locals matching the ClickHouse types and then converted.
+func scanLogScore(rows interface{ Scan(...any) error }) (ntpdb.LogScore, error) {
+	row := ntpdb.LogScore{}
+
+	var (
+		id        uint64
+		monitorID uint32
+		serverID  uint32
+		ts        time.Time
+		offset    sql.NullFloat64
+		rtt       sql.NullInt32
+		leap      uint8
+	)
+
+	if err := rows.Scan(
+		&id,
+		&monitorID,
+		&serverID,
+		&ts,
+		&row.Score,
+		&row.Step,
+		&offset,
+		&rtt,
+		&leap,
+		&row.Attributes.Warning,
+		&row.Attributes.Error,
+	); err != nil {
+		return row, err
+	}
+
+	row.ID = int64(id)
+	row.MonitorID = pgtype.Int8{Int64: int64(monitorID), Valid: true}
+	row.ServerID = int64(serverID)
+	row.Ts = pgtype.Timestamptz{Time: ts, Valid: true}
+	row.Offset = pgtype.Float8{Float64: offset.Float64, Valid: offset.Valid}
+	row.Rtt = pgtype.Int4{Int32: rtt.Int32, Valid: rtt.Valid}
+	row.Attributes.Leap = int8(leap)
+
+	return row, nil
+}
 
 func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, since time.Time, limit int, fullHistory bool) ([]ntpdb.LogScore, error) {
 	log := logger.Setup()
@@ -74,32 +120,12 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 	rv := []ntpdb.LogScore{}
 
 	for rows.Next() {
-
-		row := ntpdb.LogScore{}
-
-		var leap uint8
-
-		if err := rows.Scan(
-			&row.ID,
-			&row.MonitorID,
-			&row.ServerID,
-			&row.Ts,
-			&row.Score,
-			&row.Step,
-			&row.Offset,
-			&row.Rtt,
-			&leap,
-			&row.Attributes.Warning,
-			&row.Attributes.Error,
-		); err != nil {
+		row, err := scanLogScore(rows)
+		if err != nil {
 			log.Error("could not parse row", "err", err)
 			continue
 		}
-
-		row.Attributes.Leap = int8(leap)
-
 		rv = append(rv, row)
-
 	}
 
 	// log.InfoContext(ctx, "returning data", "rv", rv)
@@ -138,7 +164,8 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 		args = append(args, limit)
 	}
 
-	log.DebugContext(ctx, "clickhouse time range query",
+	log.DebugContext(
+		ctx, "clickhouse time range query",
 		"query", query,
 		"args", args,
 		"server_id", serverID,
@@ -181,31 +208,16 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 	rv := []ntpdb.LogScore{}
 
 	for rows.Next() {
-		row := ntpdb.LogScore{}
-		var leap uint8
-
-		if err := rows.Scan(
-			&row.ID,
-			&row.MonitorID,
-			&row.ServerID,
-			&row.Ts,
-			&row.Score,
-			&row.Step,
-			&row.Offset,
-			&row.Rtt,
-			&leap,
-			&row.Attributes.Warning,
-			&row.Attributes.Error,
-		); err != nil {
+		row, err := scanLogScore(rows)
+		if err != nil {
 			log.Error("could not parse row", "err", err)
 			continue
 		}
-
-		row.Attributes.Leap = int8(leap)
 		rv = append(rv, row)
 	}
 
-	log.InfoContext(ctx, "time range query results",
+	log.InfoContext(
+		ctx, "time range query results",
 		"rows_returned", len(rv),
 		"server_id", serverID,
 		"monitor_id", monitorID,
