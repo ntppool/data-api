@@ -137,7 +137,8 @@ func (srv *Server) Run() error {
 	}))
 	e.Use(otelecho.Middleware("data-api"))
 
-	e.Use(slogecho.NewWithConfig(log,
+	e.Use(slogecho.NewWithConfig(
+		log,
 		slogecho.Config{
 			WithTraceID:      false, // done by logger already
 			DefaultLevel:     slog.LevelInfo,
@@ -182,7 +183,7 @@ func (srv *Server) Run() error {
 			"http://localhost", "http://localhost:5173", "http://localhost:5174", "http://localhost:8080",
 			"https://www.ntppool.org", "https://*.ntppool.org",
 			"https://web.beta.grundclock.com", "https://manage.beta.grundclock.com",
-			"https:/*.askdev.grundclock.com",
+			"https://*.askdev.grundclock.com",
 		},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
 	}))
