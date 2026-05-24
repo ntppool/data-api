@@ -122,13 +122,19 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 	for rows.Next() {
 		row, err := scanLogScore(rows)
 		if err != nil {
-			log.Error("could not parse row", "err", err)
-			continue
+			// Fail the whole request so the caller returns a 500 rather than
+			// silently serving partial/empty data. If this turns into frequent
+			// user-facing errors, we could tolerate a few (or a small
+			// percentage of) row errors per request when the rest is good data.
+			log.ErrorContext(ctx, "could not parse row", "err", err)
+			return nil, fmt.Errorf("could not parse log_scores row: %w", err)
 		}
 		rv = append(rv, row)
 	}
-
-	// log.InfoContext(ctx, "returning data", "rv", rv)
+	if err := rows.Err(); err != nil {
+		log.ErrorContext(ctx, "rows error", "err", err)
+		return nil, fmt.Errorf("database error")
+	}
 
 	return rv, nil
 }
@@ -210,10 +216,18 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 	for rows.Next() {
 		row, err := scanLogScore(rows)
 		if err != nil {
-			log.Error("could not parse row", "err", err)
-			continue
+			// Fail the whole request so the caller returns a 500 rather than
+			// silently serving partial/empty data. If this turns into frequent
+			// user-facing errors, we could tolerate a few (or a small
+			// percentage of) row errors per request when the rest is good data.
+			log.ErrorContext(ctx, "could not parse row", "err", err)
+			return nil, fmt.Errorf("could not parse log_scores row: %w", err)
 		}
 		rv = append(rv, row)
+	}
+	if err := rows.Err(); err != nil {
+		log.ErrorContext(ctx, "rows error", "err", err)
+		return nil, fmt.Errorf("database error")
 	}
 
 	log.InfoContext(
