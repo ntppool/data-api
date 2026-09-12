@@ -27,6 +27,7 @@ import (
 	"go.ntppool.org/common/metricsserver"
 	"go.ntppool.org/common/tracing"
 	"go.ntppool.org/common/version"
+	xffecho "go.ntppool.org/common/xff/echo"
 	"go.ntppool.org/common/xff/fastlyxff"
 
 	"go.ntppool.org/common/config"
@@ -121,11 +122,7 @@ func (srv *Server) Run() error {
 		if err != nil {
 			return err
 		}
-		cdnTrustRanges, err := xff.EchoTrustOption()
-		if err != nil {
-			return err
-		}
-		trustOptions = append(trustOptions, cdnTrustRanges...)
+		trustOptions = append(trustOptions, xffecho.TrustOptions(xff)...)
 	} else {
 		log.Warn("Fastly IPs not configured (FASTLY_IPS)")
 	}

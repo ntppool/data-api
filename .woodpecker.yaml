@@ -16,7 +16,7 @@ variables:
 
 steps:
   - name: vendor
-    image: golang:1.26
+    image: golang:1.27
     pull: true
     environment:
       GOMODCACHE: /go/pkg/mod
@@ -30,7 +30,7 @@ steps:
       - rm -f ~/.netrc
 
   - name: test
-    image: golang:1.26
+    image: golang:1.27
     pull: true
     environment: *go_env
     volumes: *go_volumes
@@ -40,7 +40,7 @@ steps:
     depends_on: [vendor]
 
   - name: goreleaser
-    image: golang:1.26
+    image: golang:1.27.1
     pull: true
     environment: *go_env
     volumes: *go_volumes
