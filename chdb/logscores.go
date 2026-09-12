@@ -27,7 +27,7 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 
 	args := []interface{}{serverID}
 	query := `select id,monitor_id,server_id,ts,
-                toFloat64(score),toFloat64(step),offset,
+                toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
               where
@@ -35,7 +35,7 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 
 	if monitorID > 0 {
 		query = `select id,monitor_id,server_id,ts,
-                toFloat64(score),toFloat64(step),offset,
+                toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
               where
@@ -116,7 +116,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 	args := []interface{}{serverID, from, to}
 
 	query := `select id,monitor_id,server_id,ts,
-                toFloat64(score),toFloat64(step),offset,
+                toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
               where
