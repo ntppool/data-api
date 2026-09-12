@@ -3,12 +3,14 @@ package chdb
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
 
 	"dario.cat/mergo"
 	"github.com/ClickHouse/clickhouse-go/v2"
+	clickhousedriver "github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 	"gopkg.in/yaml.v3"
 
 	"go.ntppool.org/common/logger"
@@ -66,11 +68,11 @@ func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error
 
 	ch := &ClickHouse{}
 
-	ch.Logs, err = open(ctx, cfg.ClickHouse.Logs)
+	ch.Logs, err = open(ctx, "logs", cfg.ClickHouse.Logs)
 	if err != nil {
 		return nil, fmt.Errorf("logs: %w", err)
 	}
-	ch.Scores, err = open(ctx, cfg.ClickHouse.Scores)
+	ch.Scores, err = open(ctx, "scores", cfg.ClickHouse.Scores)
 	if err != nil {
 		return nil, fmt.Errorf("scores: %w", err)
 	}
@@ -78,7 +80,7 @@ func setupClickhouse(ctx context.Context, configFile string) (*ClickHouse, error
 	return ch, nil
 }
 
-func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
+func open(ctx context.Context, name string, cfg DBConfig) (clickhouse.Conn, error) {
 	log := logger.Setup()
 
 	options := &clickhouse.Options{
@@ -152,17 +154,84 @@ func open(ctx context.Context, cfg DBConfig) (clickhouse.Conn, error) {
 		return nil, err
 	}
 
-	v, err := conn.ServerVersion()
-	if err != nil {
-		return nil, err
+	readTimeout := options.ReadTimeout
+	if readTimeout == 0 {
+		readTimeout = 5 * time.Minute
 	}
-	log.Info("clickhouse connection", "version", v)
-
-	err = conn.Ping(ctx)
-	if err != nil {
-		log.Error("clickhouse ping", "err", err)
+	if err := verifyClickhouseConnection(ctx, log, name, conn, []any{
+		"addresses", options.Addr,
+		"database", options.Auth.Database,
+		"protocol", options.Protocol.String(),
+		"tls", options.TLS != nil,
+		"dial_timeout", options.DialTimeout,
+		"read_timeout", readTimeout,
+		"max_open_connections", options.MaxOpenConns,
+		"max_idle_connections", options.MaxIdleConns,
+	}); err != nil {
 		return nil, err
 	}
 
 	return conn, nil
+}
+
+type clickhouseConnectionVerifier interface {
+	ServerVersion() (*clickhousedriver.ServerVersion, error)
+	Ping(context.Context) error
+}
+
+func verifyClickhouseConnection(
+	ctx context.Context,
+	log *slog.Logger,
+	name string,
+	conn clickhouseConnectionVerifier,
+	details []any,
+) error {
+	started := time.Now()
+	log.InfoContext(ctx, "opening clickhouse connection", append([]any{"connection", name}, details...)...)
+
+	handshakeStarted := time.Now()
+	version, err := conn.ServerVersion()
+	handshakeDuration := time.Since(handshakeStarted)
+	if err != nil {
+		log.ErrorContext(ctx, "clickhouse connection failed",
+			"connection", name,
+			"phase", "handshake",
+			"duration", handshakeDuration,
+			"total_duration", time.Since(started),
+			"context_err", contextError(ctx),
+			"err", err,
+		)
+		return fmt.Errorf("handshake after %s: %w", handshakeDuration, err)
+	}
+
+	pingStarted := time.Now()
+	err = conn.Ping(ctx)
+	pingDuration := time.Since(pingStarted)
+	if err != nil {
+		log.ErrorContext(ctx, "clickhouse connection failed",
+			"connection", name,
+			"phase", "ping",
+			"duration", pingDuration,
+			"total_duration", time.Since(started),
+			"context_err", contextError(ctx),
+			"err", err,
+		)
+		return fmt.Errorf("ping after %s: %w", pingDuration, err)
+	}
+
+	log.InfoContext(ctx, "clickhouse connection", append([]any{
+		"connection", name,
+		"version", version,
+		"handshake_duration", handshakeDuration,
+		"ping_duration", pingDuration,
+		"total_duration", time.Since(started),
+	}, details...)...)
+	return nil
+}
+
+func contextError(ctx context.Context) string {
+	if err := ctx.Err(); err != nil {
+		return err.Error()
+	}
+	return ""
 }

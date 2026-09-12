@@ -306,7 +306,6 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 		ctx := req.Context()
 		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		g, ctx := errgroup.WithContext(ctx)
 
 		stats := srv.db.Stats()
 		if stats.OpenConnections > 3 {
@@ -326,34 +325,50 @@ func healthHandler(srv *Server, log *slog.Logger) func(w http.ResponseWriter, re
 			}
 		}
 
-		g.Go(func() error {
-			err := srv.ch.Scores.Ping(ctx)
-			if err != nil {
-				log.WarnContext(ctx, "ch scores ping", "err", err)
-				return err
-			}
-			return nil
-		})
+		err := runHealthCheck(ctx, log, "all", healthCheckSlowThreshold, func() []any {
+			return []any{"path", req.URL.Path}
+		}, func(ctx context.Context) error {
+			g, ctx := errgroup.WithContext(ctx)
 
-		g.Go(func() error {
-			err := srv.ch.Logs.Ping(ctx)
-			if err != nil {
-				log.WarnContext(ctx, "ch logs ping", "err", err)
-				return err
-			}
-			return nil
-		})
+			g.Go(func() error {
+				return runHealthCheck(ctx, log, "clickhouse.scores", healthCheckSlowThreshold, func() []any {
+					stats := srv.ch.Scores.Stats()
+					return []any{
+						"open_connections", stats.Open,
+						"idle_connections", stats.Idle,
+						"max_open_connections", stats.MaxOpenConns,
+						"max_idle_connections", stats.MaxIdleConns,
+					}
+				}, srv.ch.Scores.Ping)
+			})
 
-		g.Go(func() error {
-			err := srv.db.PingContext(ctx)
-			if err != nil {
-				log.WarnContext(ctx, "db ping", "err", err)
-				return err
-			}
-			return nil
-		})
+			g.Go(func() error {
+				return runHealthCheck(ctx, log, "clickhouse.logs", healthCheckSlowThreshold, func() []any {
+					stats := srv.ch.Logs.Stats()
+					return []any{
+						"open_connections", stats.Open,
+						"idle_connections", stats.Idle,
+						"max_open_connections", stats.MaxOpenConns,
+						"max_idle_connections", stats.MaxIdleConns,
+					}
+				}, srv.ch.Logs.Ping)
+			})
 
-		err := g.Wait()
+			g.Go(func() error {
+				return runHealthCheck(ctx, log, "mysql", healthCheckSlowThreshold, func() []any {
+					stats := srv.db.Stats()
+					return []any{
+						"open_connections", stats.OpenConnections,
+						"in_use_connections", stats.InUse,
+						"idle_connections", stats.Idle,
+						"wait_count", stats.WaitCount,
+						"wait_duration", stats.WaitDuration,
+					}
+				}, srv.db.PingContext)
+			})
+
+			return g.Wait()
+		})
 		if err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, err = w.Write([]byte("db ping err"))
