@@ -133,16 +133,11 @@ func (srv *Server) Run() error {
 	}))
 	e.Use(otelecho.Middleware("data-api"))
 
-	e.Use(slogecho.NewWithConfig(
-		log,
-		slogecho.Config{
-			WithTraceID:      false, // done by logger already
-			DefaultLevel:     slog.LevelInfo,
-			ClientErrorLevel: slog.LevelWarn,
-			ServerErrorLevel: slog.LevelError,
-			// WithRequestHeader: true,
-		},
-	))
+	logConfig := slogecho.DefaultConfig()
+	logConfig.WithTraceID = false // done by logger already
+	// logConfig.WithRequestHeader = true
+
+	e.Use(slogecho.NewWithConfig(log, logConfig))
 
 	e.Use(
 		func(next echo.HandlerFunc) echo.HandlerFunc {
