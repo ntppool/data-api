@@ -397,16 +397,6 @@ func (srv *Server) scoresTimeRange(c echo.Context) error {
 	log.InfoContext(ctx, "clickhouse query results",
 		"server_id", server.ID,
 		"rows_returned", len(logScores),
-		"first_few_ids", func() []int64 {
-			ids := make([]int64, 0, 3)
-			for i, ls := range logScores {
-				if i >= 3 {
-					break
-				}
-				ids = append(ids, ls.ID)
-			}
-			return ids
-		}(),
 	)
 
 	// Build LogScoreHistory structure for compatibility with existing functions

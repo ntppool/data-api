@@ -404,8 +404,6 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 		return err
 	}
 	for _, l := range history.LogScores {
-		// log.Debug("csv line", "id", l.ID, "n", i)
-
 		var offset string
 		if l.Offset.Valid {
 			offset = ff(l.Offset.Float64)
@@ -441,7 +439,7 @@ func (srv *Server) historyCSV(ctx context.Context, c echo.Context, history *logs
 			sanitizeForCSV(l.Attributes.Error),
 		})
 		if err != nil {
-			log.Warn("csv encoding error", "ls_id", l.ID, "err", err)
+			log.Warn("csv encoding error", "ts", l.Ts.Time, "monitor_id", l.MonitorID.Int64, "err", err)
 		}
 	}
 	w.Flush()
@@ -465,7 +463,7 @@ func setHistoryCacheControl(c echo.Context, history *logscores.LogScoreHistory) 
 	if len(history.LogScores) == 0 ||
 		// cache for longer if data hasn't updated for a while; or we didn't
 		// find any.
-		(time.Now().Add(-8 * time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts.Time)) {
+		time.Now().Add(-8*time.Hour).After(history.LogScores[len(history.LogScores)-1].Ts.Time) {
 		hdr.Set("Cache-Control", "s-maxage=260,max-age=360")
 	} else {
 		if len(history.LogScores) == 1 {
