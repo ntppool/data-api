@@ -15,14 +15,13 @@ import (
 )
 
 // scanLogScore reads one ClickHouse log_scores row into an ntpdb.LogScore.
-// The ClickHouse columns are unsigned (id UInt64, monitor_id/server_id UInt32,
-// rtt UInt32), but the PostgreSQL-generated model uses signed/pgtype fields, so
+// The ClickHouse columns are unsigned (monitor_id/server_id UInt32, rtt UInt32),
+// but the PostgreSQL-generated model uses signed/pgtype fields, so
 // the row is scanned into locals matching the ClickHouse types and then converted.
 func scanLogScore(rows interface{ Scan(...any) error }) (ntpdb.LogScore, error) {
 	row := ntpdb.LogScore{}
 
 	var (
-		id        uint64
 		monitorID uint32
 		serverID  uint32
 		ts        time.Time
@@ -32,7 +31,6 @@ func scanLogScore(rows interface{ Scan(...any) error }) (ntpdb.LogScore, error) 
 	)
 
 	if err := rows.Scan(
-		&id,
 		&monitorID,
 		&serverID,
 		&ts,
@@ -47,7 +45,6 @@ func scanLogScore(rows interface{ Scan(...any) error }) (ntpdb.LogScore, error) 
 		return row, err
 	}
 
-	row.ID = int64(id)
 	row.MonitorID = pgtype.Int8{Int64: int64(monitorID), Valid: true}
 	row.ServerID = int64(serverID)
 	row.Ts = pgtype.Timestamptz{Time: ts, Valid: true}
@@ -72,7 +69,7 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 	}
 
 	args := []interface{}{serverID}
-	query := `select id,monitor_id,server_id,ts,
+	query := `select monitor_id,server_id,ts,
                 toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
@@ -80,7 +77,7 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
                 server_id = ?`
 
 	if monitorID > 0 {
-		query = `select id,monitor_id,server_id,ts,
+		query = `select monitor_id,server_id,ts,
                 toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
@@ -147,7 +144,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 
 	args := []interface{}{serverID, from, to}
 
-	query := `select id,monitor_id,server_id,ts,
+	query := `select monitor_id,server_id,ts,
                 toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
               from log_scores
@@ -244,7 +241,6 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 					break
 				}
 				samples = append(samples, map[string]interface{}{
-					"id":           row.ID,
 					"monitor_id":   row.MonitorID,
 					"ts":           row.Ts.Time.Format(time.RFC3339),
 					"score":        row.Score,
