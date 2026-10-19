@@ -55,6 +55,21 @@ func scanLogScore(rows interface{ Scan(...any) error }) (ntpdb.LogScore, error) 
 	return row, nil
 }
 
+// weekBoundArgs documents how the toStartOfWeek(toDateTime(?)) bounds are
+// bound: as Unix seconds, so toDateTime converts them in the server's default
+// time zone, the same one ts and the table's toStartOfWeek(ts) key use.
+// Binding a time.Time instead would make clickhouse-go send
+// toDateTime('...', '<zone>') for any Location other than Local or the
+// server's zone, and toStartOfWeek would then compute the week in that zone
+// and could drop rows near a Sunday midnight.
+func weekBoundArgs(t ...time.Time) []any {
+	rv := make([]any, len(t))
+	for i, v := range t {
+		rv[i] = v.Unix()
+	}
+	return rv
+}
+
 func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, since time.Time, limit int, fullHistory bool) ([]ntpdb.LogScore, error) {
 	log := logger.Setup()
 	ctx, span := tracing.Tracer().Start(ctx, "CH Logscores")
@@ -93,12 +108,17 @@ func (d *ClickHouse) Logscores(ctx context.Context, serverID, monitorID int, sin
 			query += " desc"
 		}
 	} else {
-		query += " and ts > ? order by ts "
+		// The toStartOfWeek predicate never drops a row that ts > ? keeps;
+		// it is there so ClickHouse can use the toStartOfWeek(ts) part of
+		// the log_scores_shard4 sort key. See weekBoundArgs.
+		query += " and ts > ? and toStartOfWeek(ts) >= toStartOfWeek(toDateTime(?)) order by ts "
 		if recentFirst {
 			query += "desc "
 		}
 		query += "limit ?"
-		args = append(args, since, limit)
+		args = append(args, since)
+		args = append(args, weekBoundArgs(since)...)
+		args = append(args, limit)
 	}
 
 	log.DebugContext(ctx, "clickhouse query", "query", query, "args", args)
@@ -143,7 +163,9 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 	defer span.End()
 
 	args := []interface{}{serverID, from, to}
+	args = append(args, weekBoundArgs(from, to)...)
 
+	// The toStartOfWeek predicates are only for the sort key; see weekBoundArgs.
 	query := `select monitor_id,server_id,ts,
                 toFloat64(score),toFloat64(step),toFloat64(offset),
                 rtt,leap,warning,error
@@ -151,7 +173,9 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
               where
                 server_id = ?
                 and ts >= ?
-                and ts <= ?`
+                and ts <= ?
+                and toStartOfWeek(ts) >= toStartOfWeek(toDateTime(?))
+                and toStartOfWeek(ts) <= toStartOfWeek(toDateTime(?))`
 
 	if monitorID > 0 {
 		query += " and monitor_id = ?"
@@ -183,7 +207,7 @@ func (d *ClickHouse) LogscoresTimeRange(ctx context.Context, serverID, monitorID
 			for strings.Contains(sqlDebug, "?") && paramIndex < len(args) {
 				var replacement string
 				switch v := args[paramIndex].(type) {
-				case int:
+				case int, int64:
 					replacement = fmt.Sprintf("%d", v)
 				case time.Time:
 					replacement = fmt.Sprintf("'%s'", v.Format("2006-01-02 15:04:05"))
