@@ -18,7 +18,7 @@ SELECT
 			THEN netspeed
 			ELSE 0
 		END
-	) AS int) AS netspeed_active
+	) AS bigint) AS netspeed_active
 FROM
 	servers s
 	INNER JOIN server_zones sz ON (sz.server_id = s.id)
