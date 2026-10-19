@@ -55,7 +55,7 @@ steps:
           limits:
             cpu: 10000m
             memory: 4Gi
-    depends_on: [test]
+    depends_on: [vendor]
 
   - name: generate-tags
     image: ghcr.io/abh/woodpecker-docker-tags-plugin:0.2.1-abh
@@ -67,7 +67,7 @@ steps:
         edge -v latest
     when:
       - event: [push, tag, manual]
-    depends_on: [goreleaser]
+    depends_on: []
 
   - name: docker
     image: woodpeckerci/plugin-kaniko
@@ -81,4 +81,4 @@ steps:
         from_secret: harbor_password
     when:
       - event: [push, tag, manual]
-    depends_on: [goreleaser, generate-tags]
+    depends_on: [test, goreleaser, generate-tags]
